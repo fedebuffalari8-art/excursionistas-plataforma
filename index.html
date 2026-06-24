@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Club Inteligente — Excursionistas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -434,6 +435,61 @@
     transition:background 0.15s; line-height:1;
   }
   .doc-icon-btn:hover{ background:#EDF1E8; }
+
+  /* ---------- RESPONSIVE / MOBILE ---------- */
+  .hamburger-btn{
+    all:unset; cursor:pointer; display:none; font-size:20px; line-height:1;
+    padding:6px 9px; border-radius:8px; color:var(--text-dark);
+  }
+  .hamburger-btn:hover{ background:#F0F2EA; }
+  .sidebar-overlay{
+    display:none; position:fixed; inset:0; z-index:99;
+    background:rgba(8,20,12,0.5);
+  }
+  .sidebar-overlay.show{ display:block; }
+  .table-scroll{ width:100%; }
+
+  @media (max-width: 900px){
+    .hamburger-btn{ display:flex; align-items:center; }
+    .sidebar{
+      position:fixed; top:0; left:0; height:100vh; z-index:110;
+      width:250px; transform:translateX(-100%);
+      transition:transform 0.25s ease; box-shadow:0 0 40px rgba(0,0,0,0.3);
+    }
+    .sidebar.open{ transform:translateX(0); }
+    #app{ flex-direction:column; }
+    main{ width:100%; min-width:0; }
+    .content{ padding:18px 16px 40px; }
+    header.topbar{ padding:14px 16px; flex-wrap:wrap; gap:10px; row-gap:10px; }
+    header.topbar h2{ font-size:18px; }
+    .sync-text{ display:none; }
+    .sync-badge{ padding:6px 9px; }
+    .grid-4{ grid-template-columns: repeat(2,1fr); }
+    .grid-3{ grid-template-columns: repeat(2,1fr); }
+    .grid-2{ grid-template-columns: 1fr; }
+    .table-scroll{ overflow-x:auto; -webkit-overflow-scrolling:touch; margin: 0 -2px; }
+    .table-scroll table{ min-width:620px; }
+    .login-card{ width:90vw; max-width:380px; padding:28px 22px 24px; }
+    .ig-modal{ max-width:94vw !important; max-height:90vh; }
+    .ig-modal-header{ padding:18px 18px; }
+    .ig-modal-body{ padding:18px 18px 24px; }
+    .ig-stat-grid{ grid-template-columns: repeat(2,1fr) !important; }
+    .convocatoria-bar{ flex-wrap:wrap; }
+    .convocatoria-bar input[type=text]{ max-width:none; flex:1 1 100%; order:3; }
+    .convocatoria-note{ margin-left:0; order:4; max-width:none; }
+    .best-post-wrap{ flex-wrap:wrap; }
+    .best-post-metrics{ margin-left:0; width:100%; justify-content:flex-start; gap:24px; }
+  }
+
+  @media (max-width: 560px){
+    .grid-4, .grid-3{ grid-template-columns: 1fr; }
+    .filter-row{ gap:6px; }
+    .chip{ padding:6px 11px; font-size:12.5px; }
+    .card{ padding:16px; }
+    header.topbar h2{ font-size:16px; }
+    .user-chip span#user-chip-name{ display:none; }
+    .post-detail-metrics{ gap:8px; }
+  }
 </style>
 </head>
 <body>
@@ -493,12 +549,15 @@
 
 <main>
   <header class="topbar">
-    <div>
-      <h2 id="page-title">Resumen general</h2>
-      <div class="desc" id="page-desc">Vista consolidada del club, hoy</div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Abrir menú">☰</button>
+      <div>
+        <h2 id="page-title">Resumen general</h2>
+        <div class="desc" id="page-desc">Vista consolidada del club, hoy</div>
+      </div>
     </div>
     <div style="display:flex; align-items:center; gap:14px;">
-      <div class="sync-badge"><span class="sync-dot"></span> Sincronizado con Access Fan — hace 12 min</div>
+      <div class="sync-badge"><span class="sync-dot"></span> <span class="sync-text">Sincronizado con Access Fan — hace 12 min</span></div>
       <div class="user-chip" id="user-chip">
         <span id="user-chip-name">—</span>
         <span class="dev-count" id="user-chip-devices"></span>
@@ -506,6 +565,7 @@
       </div>
     </div>
   </header>
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
   <div class="content">
 
@@ -575,7 +635,7 @@
         <button class="chip" data-sort="age_desc">Edad: mayor a menor</button>
       </div>
 
-      <table>
+      <div class="table-scroll"><table>
         <thead>
           <tr>
             <th></th>
@@ -588,7 +648,7 @@
           </tr>
         </thead>
         <tbody id="plantel-body"><!-- filled by JS --></tbody>
-      </table>
+      </table></div>
 
       <div class="convocatoria-bar">
         <div class="count"><b id="conv-count">0</b> convocados</div>
@@ -643,7 +703,7 @@
           <button class="chip" data-est="Por vencer">Por vencer</button>
           <button class="chip" data-est="Vencido">Vencidos</button>
         </div>
-        <table>
+        <div class="table-scroll"><table>
           <thead>
             <tr>
               <th></th>
@@ -656,7 +716,7 @@
             </tr>
           </thead>
           <tbody id="legal-body"><!-- filled by JS --></tbody>
-        </table>
+        </table></div>
         <div style="font-size:11.5px; color:var(--text-faint); margin-top:14px; line-height:1.5;">
           Datos de ejemplo — el club tiene que cargar fechas y vínculos reales. El botón "Cargar PDF" guarda el nombre del archivo como referencia; en producción esto necesita un servidor de almacenamiento para guardar el archivo en sí.
         </div>
@@ -675,7 +735,7 @@
         <span class="ic">🔗</span>
         <div>Tabla de ejemplo — en producción, estos datos vienen <b>en vivo desde Access Fan</b> vía sincronización automática.</div>
       </div>
-      <table>
+      <div class="table-scroll"><table>
         <thead><tr><th>Socio</th><th>Categoría</th><th>Estado</th><th>Última cuota</th><th>Vencimiento</th></tr></thead>
         <tbody>
           <tr><td>Martínez, Juan</td><td>Mayor</td><td><span class="badge green">Al día</span></td><td class="mono">Mayo 2026</td><td class="mono">05/07/26</td></tr>
@@ -686,7 +746,7 @@
           <tr><td>Romero, Valentina</td><td>Mayor</td><td><span class="badge green">Al día</span></td><td class="mono">Junio 2026</td><td class="mono">05/08/26</td></tr>
           <tr><td>Acosta, Tomás</td><td>Menor</td><td><span class="badge green">Al día</span></td><td class="mono">Junio 2026</td><td class="mono">05/08/26</td></tr>
         </tbody>
-      </table>
+      </table></div>
     </section>
 
     <!-- FINANZAS -->
@@ -712,7 +772,7 @@
         <button class="chip" data-cat="2011">2011</button>
         <button class="chip" data-cat="2012">2012</button>
       </div>
-      <table>
+      <div class="table-scroll"><table>
         <thead><tr><th>Jugador</th><th>Categoría</th><th>Posición</th><th>Apto físico</th><th>Próxima evaluación</th></tr></thead>
         <tbody id="juveniles-body">
           <tr data-cat="2010"><td>Ríos, Bautista</td><td class="mono">2010</td><td>Mediocampista</td><td><span class="badge green">Vigente</span></td><td class="mono">10/07/26</td></tr>
@@ -722,7 +782,7 @@
           <tr data-cat="2012"><td>Torres, Benicio</td><td class="mono">2012</td><td>Defensor</td><td><span class="badge green">Vigente</span></td><td class="mono">20/07/26</td></tr>
           <tr data-cat="2012"><td>Vega, Mateo</td><td class="mono">2012</td><td>Mediocampista</td><td><span class="badge amber">Vence en 12 días</span></td><td class="mono">08/07/26</td></tr>
         </tbody>
-      </table>
+      </table></div>
     </section>
 
     <!-- SPONSORS -->
@@ -1289,6 +1349,16 @@
     document.getElementById('page-title').textContent = titles[name][0];
     document.getElementById('page-desc').textContent = titles[name][1];
     if(name === 'legales') initLegalesPanel();
+    closeSidebar();
+  }
+
+  function toggleSidebar(){
+    document.querySelector('.sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('show');
+  }
+  function closeSidebar(){
+    document.querySelector('.sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('show');
   }
   document.querySelectorAll('#nav button').forEach(btn => btn.addEventListener('click', () => goPanel(btn.dataset.panel)));
 
