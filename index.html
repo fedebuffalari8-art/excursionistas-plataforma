@@ -477,6 +477,7 @@
   <nav id="nav">
     <button data-panel="resumen" class="active"><span class="ic">◆</span> Resumen</button>
     <button data-panel="plantel"><span class="ic">●</span> Plantel Profesional</button>
+    <button data-panel="legales"><span class="ic">⚖</span> Legales</button>
     <button data-panel="socios"><span class="ic">◇</span> Socios &amp; Cuotas</button>
     <button data-panel="finanzas"><span class="ic">▦</span> Finanzas</button>
     <button data-panel="juveniles"><span class="ic">▲</span> Juveniles</button>
@@ -567,48 +568,74 @@
         <div>Plantel cargado desde la <b>planilla oficial de AFA</b> — Sportivo Italiano vs. Excursionistas, 13/06/2026 (Primera B 2026).</div>
       </div>
 
-      <div class="filter-row" id="plantel-subnav" style="margin-bottom:20px;">
-        <button class="chip active" data-view="roster" onclick="switchPlantelView('roster')">👤 Plantel</button>
-        <button class="chip" data-view="legal" onclick="switchPlantelView('legal')">⚖️ Legales</button>
+      <div class="filter-row" id="plantel-filters">
+        <button class="chip active" data-sort="az">A → Z</button>
+        <button class="chip" data-sort="za">Z → A</button>
+        <button class="chip" data-sort="age_asc">Edad: menor a mayor</button>
+        <button class="chip" data-sort="age_desc">Edad: mayor a menor</button>
       </div>
 
-      <!-- VISTA: PLANTEL -->
-      <div id="plantel-view-roster">
-        <div class="filter-row" id="plantel-filters">
-          <button class="chip active" data-sort="az">A → Z</button>
-          <button class="chip" data-sort="za">Z → A</button>
-          <button class="chip" data-sort="age_asc">Edad: menor a mayor</button>
-          <button class="chip" data-sort="age_desc">Edad: mayor a menor</button>
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>Jugador</th>
+            <th>DNI</th>
+            <th>Fecha Nac.</th>
+            <th>Edad</th>
+            <th style="width:44px;">Conv.</th>
+            <th style="width:40px;"></th>
+          </tr>
+        </thead>
+        <tbody id="plantel-body"><!-- filled by JS --></tbody>
+      </table>
+
+      <div class="convocatoria-bar">
+        <div class="count"><b id="conv-count">0</b> convocados</div>
+        <input type="text" id="conv-phone" value="+5491123456789" placeholder="Whatsapp del jefe de prensa">
+        <button class="btn wpp" onclick="enviarConvocatoria()">📲 Enviar convocatoria por WhatsApp</button>
+        <div class="convocatoria-note">Próximo partido: vs. Platense · Sáb 27/06</div>
+      </div>
+    </section>
+
+    <!-- LEGALES -->
+    <section class="panel" id="panel-legales">
+
+      <div class="grid grid-4" style="margin-bottom:18px;">
+        <div class="card kpi hoverable">
+          <h3>Contratos vigentes</h3>
+          <div class="num" id="legal-kpi-vigentes" style="color:var(--bg-deep);">—</div>
+          <div class="delta" style="color:var(--text-faint);">sin acción requerida</div>
         </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th></th>
-              <th>Jugador</th>
-              <th>DNI</th>
-              <th>Fecha Nac.</th>
-              <th>Edad</th>
-              <th style="width:44px;">Conv.</th>
-              <th style="width:40px;"></th>
-            </tr>
-          </thead>
-          <tbody id="plantel-body"><!-- filled by JS --></tbody>
-        </table>
-
-        <div class="convocatoria-bar">
-          <div class="count"><b id="conv-count">0</b> convocados</div>
-          <input type="text" id="conv-phone" value="+5491123456789" placeholder="Whatsapp del jefe de prensa">
-          <button class="btn wpp" onclick="enviarConvocatoria()">📲 Enviar convocatoria por WhatsApp</button>
-          <div class="convocatoria-note">Próximo partido: vs. Platense · Sáb 27/06</div>
+        <div class="card kpi hoverable">
+          <h3>Por vencer (60 días)</h3>
+          <div class="num" id="legal-kpi-porvencer" style="color:var(--amber);">—</div>
+          <div class="delta warn">revisar pronto</div>
+        </div>
+        <div class="card kpi hoverable">
+          <h3>Vencidos</h3>
+          <div class="num" id="legal-kpi-vencidos" style="color:var(--red);">—</div>
+          <div class="delta down">requieren atención</div>
+        </div>
+        <div class="card kpi hoverable">
+          <h3>Derechos económicos</h3>
+          <div class="num" id="legal-kpi-derechos" style="color:var(--text-dark);">—</div>
+          <div class="delta" style="color:var(--text-faint);">promedio en poder del club</div>
         </div>
       </div>
 
-      <!-- VISTA: LEGALES -->
-      <div id="plantel-view-legal" style="display:none;">
-        <div class="integration-note" style="background:#FBF1E1; border-color:#E3C792;">
-          <span class="ic">⚠️</span>
-          <div id="legal-alert-text">Calculando vencimientos…</div>
+      <div class="grid grid-2" style="margin-bottom:18px;">
+        <div class="card hoverable" style="grid-column: span 2;">
+          <h3 style="margin-bottom:12px;">⏳ Próximos vencimientos</h3>
+          <div id="legal-upcoming-list"><div class="ig-empty-note">Calculando…</div></div>
+        </div>
+      </div>
+
+      <div class="card hoverable" style="margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:16px;">
+          <h3 style="margin-bottom:0;">Contratos del plantel profesional</h3>
+          <input type="text" id="legal-search" placeholder="Buscar jugador…" oninput="renderLegal(currentLegalFilter)"
+            style="padding:8px 12px; border:1px solid var(--border); border-radius:7px; font-size:13px; font-family:var(--font-body); width:220px;">
         </div>
         <div class="filter-row" id="legal-filters">
           <button class="chip active" data-est="todos">Todos</button>
@@ -633,6 +660,12 @@
         <div style="font-size:11.5px; color:var(--text-faint); margin-top:14px; line-height:1.5;">
           Datos de ejemplo — el club tiene que cargar fechas y vínculos reales. El botón "Cargar PDF" guarda el nombre del archivo como referencia; en producción esto necesita un servidor de almacenamiento para guardar el archivo en sí.
         </div>
+      </div>
+
+      <div class="card hoverable">
+        <h3 style="margin-bottom:4px;">Documentos institucionales</h3>
+        <div style="font-size:12.5px; color:var(--text-faint); margin-bottom:16px;">Documentación legal del club, fuera de los contratos de jugadores.</div>
+        <div class="grid grid-4" id="inst-docs-grid"><!-- filled by JS --></div>
       </div>
     </section>
 
@@ -1241,6 +1274,7 @@
   const titles = {
     resumen: ["Resumen general", "Vista consolidada del club, hoy"],
     plantel: ["Plantel Profesional", "Jugadores propios, a préstamo y convocatorias"],
+    legales: ["Legales", "Contratos, derechos económicos y documentación institucional"],
     socios: ["Socios & Cuotas", "Sincronizado desde Access Fan"],
     finanzas: ["Finanzas", "Ingresos por cuotas, entradas y sponsors"],
     juveniles: ["Jugadores Juveniles", "Fichas, documentación y seguimiento deportivo"],
@@ -1254,6 +1288,7 @@
     document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.panel === name));
     document.getElementById('page-title').textContent = titles[name][0];
     document.getElementById('page-desc').textContent = titles[name][1];
+    if(name === 'legales') initLegalesPanel();
   }
   document.querySelectorAll('#nav button').forEach(btn => btn.addEventListener('click', () => goPanel(btn.dataset.panel)));
 
@@ -1619,7 +1654,7 @@
             : `<span class="doc-pill">Sin archivo</span> <button class="doc-upload-btn" onclick="triggerUploadDoc('${p.dni}', () => openContractModal(${idx}))">Cargar PDF</button>`
           }
         </div>
-        <button class="btn ghost" style="margin-top:16px;" onclick="closeContractModal(); switchPlantelView('legal');">Ver listado completo de Legales →</button>
+        <button class="btn ghost" style="margin-top:16px;" onclick="closeContractModal(); goPanel('legales');">Ver listado completo de Legales →</button>
       </div>
     `;
     document.getElementById('contract-modal-overlay').classList.add('show');
@@ -1629,18 +1664,37 @@
     document.getElementById('contract-modal-overlay').classList.remove('show');
   }
 
-  function switchPlantelView(view){
-    document.querySelectorAll('#plantel-subnav .chip').forEach(c => c.classList.toggle('active', c.dataset.view === view));
-    document.getElementById('plantel-view-roster').style.display = view === 'roster' ? '' : 'none';
-    document.getElementById('plantel-view-legal').style.display = view === 'legal' ? '' : 'none';
-    if(view === 'legal'){
-      if(!legalDocsLoaded){
-        legalDocsLoaded = true;
-        loadLegalDocs().then(() => renderLegal('todos'));
-      } else {
-        renderLegal(currentLegalFilter);
-      }
+  let instDocsLoaded = false;
+  const INST_DOC_CATEGORIES = [
+    { key: 'estatuto', label: 'Estatuto del club', icon: '📜' },
+    { key: 'actas', label: 'Actas de Comisión Directiva', icon: '🗂️' },
+    { key: 'polizas', label: 'Pólizas de seguro', icon: '🛡️' },
+    { key: 'afa', label: 'Convenios con AFA', icon: '⚽' },
+  ];
+
+  function renderInstDocs(){
+    const grid = document.getElementById('inst-docs-grid');
+    grid.innerHTML = INST_DOC_CATEGORIES.map(cat => {
+      const doc = legalDocs['inst:' + cat.key];
+      return `
+        <div class="card" style="padding:16px;">
+          <div style="font-size:22px; margin-bottom:8px;">${cat.icon}</div>
+          <div style="font-size:13px; font-weight:500; margin-bottom:10px; line-height:1.3;">${cat.label}</div>
+          ${doc
+            ? `<span class="doc-pill has-file" style="display:block; margin-bottom:8px;">📄 ${doc.fileName}</span> <button class="doc-upload-btn" onclick="triggerUploadDoc('inst:${cat.key}', renderInstDocs)">Cambiar</button>`
+            : `<span class="doc-pill" style="display:block; margin-bottom:8px;">Sin archivo</span> <button class="doc-upload-btn" onclick="triggerUploadDoc('inst:${cat.key}', renderInstDocs)">Cargar PDF</button>`
+          }
+        </div>`;
+    }).join('');
+  }
+
+  async function initLegalesPanel(){
+    if(!legalDocsLoaded){
+      legalDocsLoaded = true;
+      await loadLegalDocs();
     }
+    renderLegal('todos');
+    renderInstDocs();
   }
 
   document.querySelectorAll('#legal-filters .chip').forEach(chip => {
@@ -1652,26 +1706,42 @@
     });
   });
 
+  function diasHasta(vencimientoISO){
+    const hoy = new Date('2026-06-23T00:00:00Z');
+    const venc = new Date(vencimientoISO + 'T00:00:00Z');
+    return Math.round((venc - hoy) / (1000*60*60*24));
+  }
+
   function renderLegal(filter){
     filter = filter || 'todos';
     currentLegalFilter = filter;
+    const searchInput = document.getElementById('legal-search');
+    const search = (searchInput ? searchInput.value : '').trim().toLowerCase();
     const body = document.getElementById('legal-body');
     body.innerHTML = '';
 
-    let vencidos = 0, porVencer = 0;
+    let vigentes = 0, vencidos = 0, porVencer = 0;
+    let sumaDerechosClub = 0;
 
     plantel.forEach((p, i) => {
       const legal = legalData[i];
       const estado = calcEstadoLegal(legal.vencimiento);
+      if(estado === 'Vigente') vigentes++;
       if(estado === 'Vencido') vencidos++;
       if(estado === 'Por vencer') porVencer++;
+      const clubPct = legal.derechos.find(d => d.parte === 'Club');
+      sumaDerechosClub += clubPct ? clubPct.porcentaje : 100;
 
       if(filter !== 'todos' && estado !== filter) return;
+      if(search){
+        const nombreCompleto = (p.apellido + ' ' + p.nombre).toLowerCase();
+        if(!nombreCompleto.includes(search)) return;
+      }
 
       const doc = legalDocs[p.dni];
       const docCell = doc
-        ? `<span class="doc-pill has-file">📄 ${doc.fileName}</span> <button class="doc-upload-btn" onclick="triggerUploadDoc('${p.dni}')">Cambiar</button>`
-        : `<span class="doc-pill">Sin archivo</span> <button class="doc-upload-btn" onclick="triggerUploadDoc('${p.dni}')">Cargar PDF</button>`;
+        ? `<span class="doc-pill has-file">📄 ${doc.fileName}</span> <button class="doc-upload-btn" onclick="triggerUploadDoc('${p.dni}', () => renderLegal(currentLegalFilter))">Cambiar</button>`
+        : `<span class="doc-pill">Sin archivo</span> <button class="doc-upload-btn" onclick="triggerUploadDoc('${p.dni}', () => renderLegal(currentLegalFilter))">Cargar PDF</button>`;
 
       const row = document.createElement('tr');
       row.innerHTML = `
@@ -1685,14 +1755,36 @@
       body.appendChild(row);
     });
 
-    const alertEl = document.getElementById('legal-alert-text');
-    if(vencidos === 0 && porVencer === 0){
-      alertEl.textContent = 'No hay contratos vencidos ni por vencer en los próximos 60 días.';
+    document.getElementById('legal-kpi-vigentes').textContent = vigentes;
+    document.getElementById('legal-kpi-porvencer').textContent = porVencer;
+    document.getElementById('legal-kpi-vencidos').textContent = vencidos;
+    document.getElementById('legal-kpi-derechos').textContent = Math.round(sumaDerechosClub / plantel.length) + '%';
+
+    // Próximos vencimientos: los 4 más urgentes que todavía no vencieron
+    const proximos = plantel
+      .map((p, i) => ({ p, legal: legalData[i] }))
+      .filter(x => x.legal.vencimiento)
+      .map(x => ({ ...x, dias: diasHasta(x.legal.vencimiento) }))
+      .filter(x => x.dias >= 0)
+      .sort((a,b) => a.dias - b.dias)
+      .slice(0, 4);
+
+    const upcomingEl = document.getElementById('legal-upcoming-list');
+    if(proximos.length === 0){
+      upcomingEl.innerHTML = `<div class="ig-empty-note">No hay vencimientos próximos cargados.</div>`;
     } else {
-      const partes = [];
-      if(vencidos > 0) partes.push(`<b>${vencidos} contrato${vencidos>1?'s':''} vencido${vencidos>1?'s':''}</b>`);
-      if(porVencer > 0) partes.push(`<b>${porVencer} por vencer</b> en los próximos 60 días`);
-      alertEl.innerHTML = partes.join(' y ') + ' — revisar antes de la próxima convocatoria.';
+      upcomingEl.innerHTML = proximos.map(x => `
+        <div class="post-detail-row">
+          <div class="avatar">${initials(x.p.apellido,x.p.nombre)}</div>
+          <div class="post-detail-info">
+            <div class="caption">${x.p.apellido}, ${x.p.nombre}</div>
+            <div class="meta">${x.legal.tipo}</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="mono" style="font-size:13px;">${fechaLegible(x.legal.vencimiento)}</div>
+            <div style="font-size:11px; color:${x.dias<=60?'var(--amber)':'var(--text-faint)'};">en ${x.dias} días</div>
+          </div>
+        </div>`).join('');
     }
   }
 
