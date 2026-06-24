@@ -1,0 +1,9 @@
+{
+  "name": "excursionistas-ig",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Funciones de Netlify para conectar la plataforma del club con Instagram sin tener que pegar el token manualmente.",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}

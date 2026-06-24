@@ -1,0 +1,10 @@
+[build]
+  functions = "netlify/functions"
+  publish = "."
+
+[functions]
+  node_bundler = "esbuild"
+
+# El historial diario y el token quedan guardados en Netlify Blobs,
+# que viene incluido gratis con cualquier sitio de Netlify - no hace
+# falta crear ninguna base de datos por separado.
