@@ -863,11 +863,23 @@
           <div class="delta up">▲ 4,6%</div>
           <div id="spark-tiktok" style="margin-top:10px;"></div>
         </div>
-        <div class="card hoverable">
+        <div class="card hoverable" id="x-card" onclick="openXDetailModal()" style="cursor:pointer;">
           <h3>✕ X (Twitter)</h3>
-          <div class="num" data-count="3743">0</div>
-          <div class="delta down">▼ 0,4%</div>
+          <div class="num" data-count="3743" id="x-followers-num">0</div>
+          <div class="delta down" id="x-delta">▼ 0,4%</div>
+          <div style="font-size:10.5px; color:var(--text-faint); margin-top:2px; font-family:var(--font-mono);" id="x-source-tag">● Dato de ejemplo</div>
           <div id="spark-x" style="margin-top:10px;"></div>
+          <div style="font-size:11px; color:var(--bg-deep); margin-top:8px; font-weight:500;">Ver detalle completo →</div>
+        </div>
+      </div>
+
+      <div class="card hoverable" id="x-connect-card" style="margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+          <div>
+            <h3 style="margin-bottom:6px;">🔌 Conexión con X</h3>
+            <div id="x-status-text" style="font-size:13px; color:var(--text-soft);">Consultando estado…</div>
+          </div>
+          <span id="x-status-badge" class="badge" style="background:#EEF1E9; color:var(--text-soft);">Verificando</span>
         </div>
       </div>
 
@@ -967,6 +979,21 @@
     </div>
   </div>
 </div>
+
+<div id="x-modal-overlay" class="ig-modal-overlay" onclick="if(event.target===this) closeXDetailModal()">
+  <div class="ig-modal">
+    <div class="ig-modal-header">
+      <div>
+        <div class="ig-modal-eyebrow">✕ X — detalle completo</div>
+        <h2 id="x-modal-username">@excursiooficial</h2>
+      </div>
+      <button class="ig-modal-close" onclick="closeXDetailModal()">✕</button>
+    </div>
+    <div class="ig-modal-body" id="x-modal-body">
+      <!-- se completa por JS -->
+    </div>
+  </div>
+</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1060,6 +1087,7 @@
     initCharts();
     renderPlantel('az');
     loadInstagramData();
+    loadXData();
   }
 
   function startHeartbeat(username){
@@ -1217,9 +1245,7 @@
     const horaActual = new Date().toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
     statusEl.textContent = 'Conectado y sincronizado automáticamente · ' + horaActual;
 
-    const tikTokMock = 6940, xMock = 3743;
-    document.getElementById('comunidad-total').textContent = (followers + tikTokMock + xMock).toLocaleString('es-AR');
-    document.getElementById('comunidad-updated').textContent = 'Actualizado ' + horaActual;
+    recalcComunidadTotal();
 
     renderIgPosts(posts);
   }
@@ -1329,6 +1355,134 @@
       const data = history.map(h => h.followers_count);
       areaChart(document.getElementById('ig-modal-growth-chart'), data, { h:140, colorHex:'#02632E', labels });
     }
+  }
+
+  /* ============ CONEXIÓN CON X (vía funciones de Netlify) ============ */
+  const X_DATA_ENDPOINT = '/.netlify/functions/x-data';
+
+  let lastXProfile = null;
+  let lastXPosts = null;
+  let lastXHistory = [];
+
+  async function loadXData(){
+    const statusEl = document.getElementById('x-status-text');
+    const badge = document.getElementById('x-status-badge');
+
+    try{
+      const res = await fetch(X_DATA_ENDPOINT);
+      const data = await res.json();
+
+      if(!data.connected){
+        statusEl.textContent = data.message || data.error || 'No conectado todavía — los números de abajo son de ejemplo.';
+        badge.textContent = 'Sin conectar';
+        badge.style.background = '#FBF1E1';
+        badge.style.color = 'var(--amber)';
+        return;
+      }
+
+      lastXProfile = data.profile;
+      lastXPosts = data.posts;
+      lastXHistory = data.history || [];
+
+      const followers = data.profile.followers_count;
+      document.getElementById('x-followers-num').textContent = followers.toLocaleString('es-AR');
+      document.getElementById('x-source-tag').textContent = '● Dato real vía API — @' + (data.profile.username || '');
+      document.getElementById('x-source-tag').style.color = 'var(--bg-deep)';
+
+      const horaActual = new Date().toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
+      statusEl.textContent = 'Conectado y sincronizado automáticamente · ' + horaActual;
+      badge.textContent = 'Conectado';
+      badge.style.background = '#E2F0E6';
+      badge.style.color = '#357047';
+
+      // Recalculamos Comunidad total combinando lo real disponible + ejemplo
+      recalcComunidadTotal();
+    }catch(e){
+      statusEl.textContent = 'No se pudo consultar el backend — mostrando datos de ejemplo.';
+      badge.textContent = 'Sin backend';
+      badge.style.background = '#FBEAE8';
+      badge.style.color = 'var(--red)';
+    }
+  }
+
+  function recalcComunidadTotal(){
+    const igNum = lastIgProfile ? lastIgProfile.followers_count : 42291;
+    const xNum = lastXProfile ? lastXProfile.followers_count : 3743;
+    const tikTokMock = 6940;
+    document.getElementById('comunidad-total').textContent = (igNum + xNum + tikTokMock).toLocaleString('es-AR');
+    document.getElementById('comunidad-updated').textContent = 'Actualizado ' + new Date().toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
+  }
+
+  function openXDetailModal(){
+    const overlay = document.getElementById('x-modal-overlay');
+    const body = document.getElementById('x-modal-body');
+    overlay.classList.add('show');
+
+    if(!lastXProfile){
+      document.getElementById('x-modal-username').textContent = 'Sin conectar';
+      body.innerHTML = `<div class="ig-empty-note">Todavía no hay datos reales conectados. La conexión con X se hace una sola vez desde el backend — avisale a quien administra la plataforma.</div>`;
+      return;
+    }
+
+    document.getElementById('x-modal-username').textContent = '@' + (lastXProfile.username || '');
+
+    const posts = lastXPosts || [];
+    const avgLikes = posts.length ? Math.round(posts.reduce((a,p)=>a+(p.public_metrics?.like_count||0),0)/posts.length) : null;
+    const avgReposts = posts.length ? Math.round(posts.reduce((a,p)=>a+(p.public_metrics?.retweet_count||0),0)/posts.length) : null;
+
+    let growthHtml = '';
+    if(lastXHistory.length >= 2){
+      const primero = lastXHistory[0];
+      const diff = lastXProfile.followers_count - primero.followers_count;
+      const signo = diff >= 0 ? '+' : '';
+      const color = diff >= 0 ? 'var(--bg-deep)' : 'var(--red)';
+      growthHtml = `<div class="sub" style="color:${color};">${signo}${diff.toLocaleString('es-AR')} desde el ${formatFechaPost(primero.date)}</div>`;
+    } else {
+      growthHtml = `<div class="sub" style="color:var(--text-faint);">Empezamos a registrar hoy</div>`;
+    }
+
+    body.innerHTML = `
+      <div class="ig-stat-grid">
+        <div class="ig-stat-box">
+          <div class="lbl">Seguidores</div>
+          <div class="val">${lastXProfile.followers_count.toLocaleString('es-AR')}</div>
+          ${growthHtml}
+        </div>
+        <div class="ig-stat-box">
+          <div class="lbl">Posts totales</div>
+          <div class="val">${lastXProfile.tweet_count !== null ? lastXProfile.tweet_count.toLocaleString('es-AR') : '—'}</div>
+          <div class="sub" style="color:var(--text-faint);">históricos en la cuenta</div>
+        </div>
+        <div class="ig-stat-box">
+          <div class="lbl">Likes — promedio</div>
+          <div class="val">${avgLikes !== null ? avgLikes.toLocaleString('es-AR') : '—'}</div>
+          <div class="sub" style="color:var(--text-faint);">últimos ${posts.length} posts</div>
+        </div>
+        <div class="ig-stat-box">
+          <div class="lbl">Reposteos — promedio</div>
+          <div class="val">${avgReposts !== null ? avgReposts.toLocaleString('es-AR') : '—'}</div>
+          <div class="sub" style="color:var(--text-faint);">últimos ${posts.length} posts</div>
+        </div>
+      </div>
+
+      <div class="ig-modal-section" style="margin-bottom:0;">
+        <h4>Crecimiento de seguidores</h4>
+        ${lastXHistory.length >= 2
+          ? `<div id="x-modal-growth-chart"></div>`
+          : `<div class="ig-empty-note">Todavía no hay suficiente historial propio para graficar la curva — la plataforma guarda un registro automático todos los días, incluso sin que nadie la abra. En unos días vas a ver la tendencia real acá.</div>`
+        }
+      </div>
+    `;
+
+    if(lastXHistory.length >= 2){
+      const labels = lastXHistory.map(h => formatFechaPost(h.date));
+      const data = lastXHistory.map(h => h.followers_count);
+      areaChart(document.getElementById('x-modal-growth-chart'), data, { h:140, colorHex:'#0F1419' });
+    }
+  }
+
+  function closeXDetailModal(){
+    document.getElementById('x-modal-overlay').classList.remove('show');
   }
 
   /* ============ NAV ============ */
