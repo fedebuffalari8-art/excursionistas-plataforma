@@ -121,7 +121,7 @@ async function fetchAudience(igUserId, token) {
 // Comparación con clubes rivales. EDITAR esta lista con los @ reales que
 // quieran seguir — solo necesitan ser cuentas públicas de Instagram
 // Business o Creator, no hace falta que autoricen nada de nuestro lado.
-const RIVALES = ['platense', 'sportivoitaliano', 'caarmenio', 'cadeportivomerlo'];
+const RIVALES = ['defeweb', 'midland.oficial', 'cacolegiales'];
 
 async function fetchCompetitors(igUserId, token) {
   const resultados = [];
