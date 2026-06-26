@@ -436,6 +436,14 @@
   }
   .doc-icon-btn:hover{ background:#EDF1E8; }
 
+  /* ---------- AUDIENCIA / COMPETENCIA ---------- */
+  .mini-heading{ font-family:var(--font-display); font-size:11.5px; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-soft); margin-bottom:10px; }
+  .bar-row{ display:flex; align-items:center; gap:10px; margin-bottom:9px; font-size:12.5px; }
+  .bar-row .label{ width:130px; flex-shrink:0; color:var(--text-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bar-row .track{ flex:1; height:8px; background:#EEF1E9; border-radius:4px; overflow:hidden; }
+  .bar-row .fill{ height:100%; border-radius:4px; transition:width 0.6s ease; }
+  .bar-row .val{ width:55px; text-align:right; font-family:var(--font-mono); color:var(--text-dark); flex-shrink:0; }
+
   /* ---------- RESPONSIVE / MOBILE ---------- */
   .hamburger-btn{
     all:unset; cursor:pointer; display:none; font-size:20px; line-height:1;
@@ -906,6 +914,20 @@
         </div>
       </div>
 
+      <div class="grid grid-2" style="margin-top:18px;">
+        <div class="card hoverable" id="ig-audience-card" style="display:none;">
+          <h3>📍 De dónde son tus seguidores</h3>
+          <div id="ig-audience-content"></div>
+        </div>
+        <div class="card hoverable" id="ig-competitors-card" style="display:none;">
+          <h3>🏁 Comparación con la competencia</h3>
+          <div id="ig-competitors-content"></div>
+          <div style="font-size:11px; color:var(--text-faint); margin-top:12px; line-height:1.5;">
+            Lista de rivales de ejemplo — se edita directo en <span class="mono">ig-data.mjs</span> (constante <span class="mono">RIVALES</span>) con los @ reales que quieran seguir.
+          </div>
+        </div>
+      </div>
+
       <div class="card hoverable" id="x-best-post-card" style="display:none; margin-top:18px; margin-bottom:18px;">
         <h3>🏆 Mejor post — X</h3>
         <div id="x-best-post-content"></div>
@@ -1211,6 +1233,65 @@
   }
 
 
+  function barsHtml(items, color){
+    if(!items || !items.length) return `<div class="ig-empty-note">Sin datos disponibles para esta cuenta.</div>`;
+    const max = Math.max(...items.map(i => i.value));
+    return items.map(i => `
+      <div class="bar-row">
+        <div class="label" title="${i.label}">${i.label}</div>
+        <div class="track"><div class="fill" style="width:${Math.round(i.value/max*100)}%; background:${color};"></div></div>
+        <div class="val">${i.value.toLocaleString('es-AR')}</div>
+      </div>`).join('');
+  }
+
+  function renderAudience(audience){
+    const card = document.getElementById('ig-audience-card');
+    const content = document.getElementById('ig-audience-content');
+    if(!audience || (!audience.topCities.length && !audience.topCountries.length && !audience.ageGender.length)){
+      card.style.display = 'none';
+      return;
+    }
+    card.style.display = 'block';
+    content.innerHTML = `
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+        <div>
+          <div class="mini-heading">Top ciudades</div>
+          ${barsHtml(audience.topCities, '#02632E')}
+        </div>
+        <div>
+          <div class="mini-heading">Top países</div>
+          ${barsHtml(audience.topCountries, '#C0A270')}
+        </div>
+      </div>
+      <div style="margin-top:18px;">
+        <div class="mini-heading">Edad y género</div>
+        ${barsHtml(audience.ageGender, '#7C8FC4')}
+      </div>
+    `;
+  }
+
+  function renderCompetitors(competitors, ourUsername, ourFollowers){
+    const card = document.getElementById('ig-competitors-card');
+    const content = document.getElementById('ig-competitors-content');
+    const all = [
+      { username: ourUsername, followers_count: ourFollowers, ours: true },
+      ...(competitors || []).map(c => ({ ...c, ours: false })),
+    ];
+    if(all.length <= 1){
+      card.style.display = 'none';
+      return;
+    }
+    card.style.display = 'block';
+    const max = Math.max(...all.map(a => a.followers_count));
+    const sorted = [...all].sort((a,b) => b.followers_count - a.followers_count);
+    content.innerHTML = sorted.map(a => `
+      <div class="bar-row">
+        <div class="label" style="${a.ours ? 'font-weight:600; color:var(--text-dark);' : ''}">${a.ours ? '⭐ ' : ''}@${a.username}</div>
+        <div class="track"><div class="fill" style="width:${Math.round(a.followers_count/max*100)}%; background:${a.ours ? 'var(--bg-deep)' : 'var(--gold)'};"></div></div>
+        <div class="val">${a.followers_count.toLocaleString('es-AR')}</div>
+      </div>`).join('');
+  }
+
   async function loadInstagramData(){
     const statusEl = document.getElementById('ig-status-text');
     const badge = document.getElementById('ig-status-badge');
@@ -1233,6 +1314,8 @@
       lastIgInsights = data.insights || null;
 
       applyInstagramData(data.profile, data.posts, data.history);
+      renderAudience(data.audience);
+      renderCompetitors(data.competitors, data.profile.username, data.profile.followers_count);
 
       badge.textContent = 'Conectado';
       badge.style.background = '#E2F0E6';
