@@ -905,6 +905,19 @@
           <div class="post-row"><span>Foto — Sede social</span><b class="mono">2,4K</b></div>
         </div>
       </div>
+
+      <div class="card hoverable" id="x-best-post-card" style="display:none; margin-top:18px; margin-bottom:18px;">
+        <h3>🏆 Mejor post — X</h3>
+        <div id="x-best-post-content"></div>
+      </div>
+
+      <div class="card hoverable" id="x-posts-card" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+          <h3>Posts de X — detalle completo</h3>
+          <span id="x-posts-count" style="font-size:11.5px; color:var(--text-faint); font-family:var(--font-mono);"></span>
+        </div>
+        <div id="x-posts-list"></div>
+      </div>
     </section>
 
     <!-- IA -->
@@ -1397,6 +1410,8 @@
 
       // Recalculamos Comunidad total combinando lo real disponible + ejemplo
       recalcComunidadTotal();
+
+      renderXPosts(data.posts, data.profile.username);
     }catch(e){
       statusEl.textContent = 'No se pudo consultar el backend — mostrando datos de ejemplo.';
       badge.textContent = 'Sin backend';
@@ -1483,6 +1498,67 @@
 
   function closeXDetailModal(){
     document.getElementById('x-modal-overlay').classList.remove('show');
+  }
+
+  function formatFechaX(iso){
+    const d = new Date(iso);
+    return d.toLocaleDateString('es-AR', { day:'2-digit', month:'short', year:'numeric' });
+  }
+
+  function renderXPosts(posts, username){
+    const bestCard = document.getElementById('x-best-post-card');
+    const bestContent = document.getElementById('x-best-post-content');
+    const postsCard = document.getElementById('x-posts-card');
+    const countEl = document.getElementById('x-posts-count');
+    const list = document.getElementById('x-posts-list');
+
+    if(!posts || !posts.length){
+      bestCard.style.display = 'none';
+      postsCard.style.display = 'none';
+      return;
+    }
+
+    const withEngagement = posts.map(p => {
+      const m = p.public_metrics || {};
+      return {
+        ...p,
+        engagement: (m.like_count||0) + (m.retweet_count||0) + (m.reply_count||0) + (m.quote_count||0),
+      };
+    });
+    const ordenados = [...withEngagement].sort((a,b) => b.engagement - a.engagement);
+    const mejor = ordenados[0];
+    const urlBase = `https://x.com/${username}/status/`;
+
+    bestCard.style.display = 'block';
+    bestContent.innerHTML = `
+      <div class="best-post-wrap">
+        <div class="post-thumb placeholder" style="background:#0F1419; color:#fff;">✕</div>
+        <div style="flex:1; min-width:0;">
+          <div class="caption">${(mejor.text || '(sin texto)').slice(0,110)}${(mejor.text||'').length>110?'…':''}</div>
+          <div class="meta">${formatFechaX(mejor.created_at)} · <a href="${urlBase}${mejor.id}" target="_blank" style="color:inherit;">Ver en X ↗</a></div>
+        </div>
+        <div class="best-post-metrics">
+          <div><b>${(mejor.public_metrics?.like_count||0).toLocaleString('es-AR')}</b><span>Likes</span></div>
+          <div><b>${(mejor.public_metrics?.retweet_count||0).toLocaleString('es-AR')}</b><span>Reposteos</span></div>
+          <div><b>${(mejor.public_metrics?.reply_count||0).toLocaleString('es-AR')}</b><span>Respuestas</span></div>
+        </div>
+      </div>`;
+
+    postsCard.style.display = 'block';
+    countEl.textContent = `${posts.length} posts · ordenados por interacción`;
+    list.innerHTML = ordenados.map(p => `
+      <div class="post-detail-row">
+        <div class="post-thumb placeholder" style="background:#0F1419; color:#fff; font-size:14px;">✕</div>
+        <div class="post-detail-info">
+          <div class="caption">${(p.text || '(sin texto)').slice(0,65)}${(p.text||'').length>65?'…':''}</div>
+          <div class="meta">${formatFechaX(p.created_at)}</div>
+        </div>
+        <div class="post-detail-metrics">
+          <div><b>${(p.public_metrics?.like_count||0).toLocaleString('es-AR')}</b>likes</div>
+          <div><b>${(p.public_metrics?.retweet_count||0).toLocaleString('es-AR')}</b>repost.</div>
+        </div>
+        <a class="permalink" href="${urlBase}${p.id}" target="_blank" title="Ver en X">↗</a>
+      </div>`).join('');
   }
 
   /* ============ NAV ============ */
