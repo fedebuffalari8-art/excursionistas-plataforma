@@ -50,6 +50,34 @@ export default async () => {
     const profile = await graph(
       `${GRAPH}/${tokens.igUserId}?fields=followers_count,media_count&access_token=${tokens.pageAccessToken}`
     );
+
+    // Completamos primero con el histórico real que Meta tenga guardado
+    try {
+      const until = Math.floor(Date.now() / 1000);
+      const since = until - 30 * 24 * 60 * 60;
+      const insightsRes = await graph(
+        `${GRAPH}/${tokens.igUserId}/insights?metric=follower_count&period=day&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`
+      );
+      const metric = insightsRes.data?.find((d) => d.name === 'follower_count');
+      if (metric && metric.values) {
+        let history = (await store.get('history', { type: 'json' })) || [];
+        const existingDates = new Set(history.map((h) => h.date));
+        metric.values
+          .filter((v) => typeof v.value === 'number')
+          .forEach((v) => {
+            const date = v.end_time.slice(0, 10);
+            if (!existingDates.has(date)) {
+              history.push({ date, followers_count: v.value });
+              existingDates.add(date);
+            }
+          });
+        history.sort((a, b) => (a.date > b.date ? 1 : -1));
+        await store.setJSON('history', history.slice(-180));
+      }
+    } catch (e) {
+      // sin histórico real disponible, seguimos solo con el registro propio
+    }
+
     const history = (await store.get('history', { type: 'json' })) || [];
     const today = new Date().toISOString().slice(0, 10);
     const idx = history.findIndex((h) => h.date === today);
