@@ -460,6 +460,25 @@
   .donut-legend-row i{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
   .donut-legend-row b{ color:var(--text-dark); font-family:var(--font-mono); margin-left:auto; }
 
+  /* ---------- GENERADOR DE COPIES ---------- */
+  .form-label{ display:block; font-size:11.5px; color:var(--text-soft); margin-bottom:6px; font-family:var(--font-mono); letter-spacing:0.02em; }
+  .form-input{
+    width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:7px;
+    font-size:13px; font-family:var(--font-body); color:var(--text-dark); background:#fff;
+  }
+  .form-input:focus{ outline:none; border-color:var(--bg-deep); }
+  textarea.form-input{ resize:vertical; }
+
+  .ig-post-mock{ border:1px solid var(--border); border-radius:12px; overflow:hidden; background:#fff; }
+  .ig-post-mock .mock-header{ display:flex; align-items:center; gap:9px; padding:11px 13px; border-bottom:1px solid #F2F4EC; }
+  .ig-post-mock .mock-header b{ font-size:12.5px; }
+  .ig-post-mock .mock-image{
+    width:100%; aspect-ratio:1/1; background:#EEF1E9; display:flex; align-items:center;
+    justify-content:center; color:var(--text-faint); font-size:12.5px; overflow:hidden; text-align:center; padding:20px;
+  }
+  .ig-post-mock .mock-image img{ width:100%; height:100%; object-fit:cover; }
+  .ig-post-mock .mock-caption{ padding:12px 13px; font-size:12.5px; line-height:1.6; white-space:pre-wrap; max-height:180px; overflow-y:auto; color:var(--text-dark); }
+
   /* ---------- RESPONSIVE / MOBILE ---------- */
   .hamburger-btn{
     all:unset; cursor:pointer; display:none; font-size:20px; line-height:1;
@@ -850,6 +869,62 @@
 
     <!-- REDES -->
     <section class="panel" id="panel-redes">
+
+      <div class="card hoverable" style="margin-bottom:18px;">
+        <h3>✍️ Generador de copies</h3>
+        <div style="font-size:12.5px; color:var(--text-faint); margin-bottom:18px;">
+          Basado en el tono real de <b>@excursiooficial</b> — mismos títulos en negrita, emojis y hashtags fijos (<span class="mono">#ElMesDeLaEstrella</span> · <span class="mono">#SomosElBajoBelgrano</span>) que ya usa la cuenta. No es una IA generativa conectada — es un generador por plantillas armado con los patrones reales de los posteos.
+        </div>
+
+        <div class="filter-row" id="copy-tipo-filters">
+          <button class="chip active" data-tipo="institucional">🏛️ Institucional</button>
+          <button class="chip" data-tipo="festejo">🎉 Festejos</button>
+          <button class="chip" data-tipo="resultado">⚽ Resultado / Partido</button>
+          <button class="chip" data-tipo="convocatoria">📋 Convocatoria</button>
+        </div>
+
+        <div class="grid grid-2" style="gap:24px; align-items:start;">
+          <div>
+            <div style="margin-bottom:14px;">
+              <label class="form-label">Título / Tema principal</label>
+              <input type="text" id="copy-titulo" class="form-input" placeholder="Ej: Nuevo refuerzo, Día del Socio, Triunfo vs Platense...">
+            </div>
+            <div style="margin-bottom:14px;">
+              <label class="form-label">Detalle (opcional)</label>
+              <textarea id="copy-detalle" class="form-input" rows="3" placeholder="Datos extra: nombre del jugador, resultado, una frase..."></textarea>
+            </div>
+            <div style="margin-bottom:18px; display:flex; align-items:center; gap:9px;">
+              <input type="checkbox" id="copy-bold-toggle" class="chk" checked>
+              <label for="copy-bold-toggle" style="font-size:12.5px; color:var(--text-soft); cursor:pointer;">Título en negrita "fancy" (como usan a veces)</label>
+            </div>
+            <div style="margin-bottom:18px;">
+              <label class="form-label">Imagen del posteo</label>
+              <input type="file" id="copy-image-input" accept="image/*" onchange="handleCopyImageUpload(event)" class="form-input" style="padding:8px;">
+            </div>
+            <button class="btn gold" onclick="generarCopy()">✨ Generar copy</button>
+
+            <div id="copy-result-area" style="margin-top:20px; display:none;">
+              <label class="form-label">Copy generado</label>
+              <textarea id="copy-result-text" rows="7" readonly class="form-input" style="line-height:1.6; font-family:var(--font-body);"></textarea>
+              <div style="display:flex; gap:10px; margin-top:10px;">
+                <button class="btn" onclick="copiarCopyGenerado()">📋 Copiar texto</button>
+                <button class="btn ghost" onclick="generarCopy()">🔄 Otra variante</button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="form-label">Vista previa</label>
+            <div id="copy-preview-card">
+              <div class="ig-post-mock">
+                <div class="mock-header"><div class="avatar" style="width:26px; height:26px; font-size:10.5px;">EX</div><b>excursiooficial</b></div>
+                <div class="mock-image">Subí una imagen para previsualizar</div>
+                <div class="mock-caption" id="copy-mock-caption">Acá vas a ver el copy generado, tal como se vería publicado.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="card hoverable" id="ig-connect-card" style="margin-bottom:18px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
@@ -1762,6 +1837,88 @@
         </div>
         <a class="permalink" href="${urlBase}${p.id}" target="_blank" title="Ver en X">↗</a>
       </div>`).join('');
+  }
+
+  /* ============ GENERADOR DE COPIES ============ */
+  // Plantillas armadas a partir del tono real de @excursiooficial:
+  // títulos en "negrita fancy" (unicode), emojis recurrentes, y los
+  // mismos 2 hashtags fijos que usan en (casi) todos los posteos.
+
+  let copyUploadedImageUrl = null;
+  let copyTipoActual = 'institucional';
+
+  // Convierte texto normal a "Mathematical Sans-Serif Bold" (unicode) -
+  // el mismo estilo de letra en negrita que usan en los títulos reales
+  // de sus posteos (ej. "𝙀𝙇 𝟕 𝘿𝙀𝙇 𝘽𝘼𝙅𝙊 𝘽𝙀𝙇𝙂𝙍𝘼𝙉𝙄").
+  function mathBoldSans(str){
+    return str.split('').map(ch => {
+      const code = ch.charCodeAt(0);
+      if(code >= 65 && code <= 90)  return String.fromCodePoint(0x1D5D4 + (code - 65)); // A-Z
+      if(code >= 97 && code <= 122) return String.fromCodePoint(0x1D5EE + (code - 97)); // a-z
+      if(code >= 48 && code <= 57)  return String.fromCodePoint(0x1D7EC + (code - 48)); // 0-9
+      return ch;
+    }).join('');
+  }
+
+  const COPY_HASHTAGS = '#ElMesDeLaEstrella ⭐\n#SomosElBajoBelgrano 🇳🇬';
+
+  const COPY_TEMPLATES = {
+    institucional: [
+      (t,d) => `${t}\n\n${d || 'Una novedad institucional para compartir con toda la familia excursionista.'}\n\n${COPY_HASHTAGS}`,
+      (t,d) => `📌 ${t}\n\n${d || ''}\n\n${COPY_HASHTAGS}`,
+    ],
+    festejo: [
+      (t,d) => `${t} 🐺💚\n\n${d || '¡Así lo vivimos, así lo sentimos!'}\n\n${COPY_HASHTAGS}`,
+      (t,d) => `🙌🏼 ${t}\n\n${d || 'Plano a plano de un festejo que nos hace seguir soñando.'}\n\n${COPY_HASHTAGS}`,
+    ],
+    resultado: [
+      (t,d) => `${t} ⚽\n\n${d || ''}\n\n${COPY_HASHTAGS}`,
+      (t,d) => `🫡 ${t}\n\n${d || 'Plano a plano para revivirlo.'}\n\n${COPY_HASHTAGS}`,
+    ],
+    convocatoria: [
+      (t,d) => `${t}\n\n${d || ''}\n\n${COPY_HASHTAGS}`,
+    ],
+  };
+
+  document.querySelectorAll('#copy-tipo-filters .chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#copy-tipo-filters .chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      copyTipoActual = chip.dataset.tipo;
+    });
+  });
+
+  function handleCopyImageUpload(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    copyUploadedImageUrl = URL.createObjectURL(file);
+    document.querySelector('#copy-preview-card .mock-image').innerHTML = `<img src="${copyUploadedImageUrl}" alt="">`;
+  }
+
+  function generarCopy(){
+    const titulo = document.getElementById('copy-titulo').value.trim();
+    const detalle = document.getElementById('copy-detalle').value.trim();
+    const usarNegrita = document.getElementById('copy-bold-toggle').checked;
+    if(!titulo){
+      showToast('Escribí al menos un título o tema para generar el copy.');
+      return;
+    }
+    const tituloFinal = usarNegrita ? mathBoldSans(titulo) : titulo;
+    const templates = COPY_TEMPLATES[copyTipoActual] || COPY_TEMPLATES.institucional;
+    const template = templates[Math.floor(Math.random() * templates.length)];
+    const texto = template(tituloFinal, detalle);
+
+    document.getElementById('copy-result-text').value = texto;
+    document.getElementById('copy-result-area').style.display = 'block';
+    document.getElementById('copy-mock-caption').innerHTML = `<b>excursiooficial</b> ` + texto.replace(/\n/g,'<br>');
+  }
+
+  function copiarCopyGenerado(){
+    const text = document.getElementById('copy-result-text').value;
+    if(!text) return;
+    navigator.clipboard.writeText(text)
+      .then(() => showToast('Copy copiado al portapapeles.'))
+      .catch(() => showToast('No se pudo copiar automáticamente — seleccioná el texto a mano.'));
   }
 
   /* ============ NAV ============ */
