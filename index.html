@@ -492,6 +492,21 @@
   .sidebar-overlay.show{ display:block; }
   .table-scroll{ width:100%; }
 
+  .informe-rank-row{ display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid #ECEFE6; }
+  .informe-rank-row:last-child{ border-bottom:none; }
+  .informe-rank-num{ font-family:var(--font-mono); font-size:13px; color:var(--text-faint); width:22px; flex-shrink:0; }
+  .informe-rank-txt{ flex:1; min-width:0; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .informe-rank-val{ font-family:var(--font-mono); font-size:12.5px; color:var(--text-dark); flex-shrink:0; }
+  .informe-ia-bubble{ background:#EDF1E8; border-radius:10px; padding:16px 18px; font-size:13.5px; line-height:1.7; color:var(--text-dark); }
+
+  @media print{
+    .sidebar, .topbar, header.topbar, #informe-ia-btn, .btn, .chip, .hamburger-btn{ display:none !important; }
+    main{ width:100%; }
+    .content{ padding:0 !important; }
+    .panel.active{ display:block !important; }
+    .card{ box-shadow:none !important; }
+  }
+
   @media (max-width: 900px){
     .hamburger-btn{ display:flex; align-items:center; }
     .sidebar{
@@ -582,6 +597,7 @@
     <button data-panel="juveniles"><span class="ic">▲</span> Juveniles</button>
     <button data-panel="sponsors"><span class="ic">◈</span> Sponsors</button>
     <button data-panel="redes"><span class="ic">◎</span> Redes &amp; Campañas</button>
+    <button data-panel="informe"><span class="ic">📰</span> Informe Mensual</button>
     <button data-panel="ia"><span class="ic">✦</span> Recomendaciones IA</button>
   </nav>
   <div class="sidebar-foot">
@@ -901,7 +917,11 @@
               <label class="form-label">Imagen del posteo</label>
               <input type="file" id="copy-image-input" accept="image/*" onchange="handleCopyImageUpload(event)" class="form-input" style="padding:8px;">
             </div>
-            <button class="btn gold" onclick="generarCopy()">✨ Generar copy</button>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn gold" onclick="generarCopy()">✨ Generar (plantilla)</button>
+              <button class="btn" onclick="generarCopyConIA()" id="copy-ia-btn">🤖 Generar con IA</button>
+            </div>
+            <div id="copy-ia-status" style="font-size:11.5px; color:var(--text-faint); margin-top:8px;"></div>
 
             <div id="copy-result-area" style="margin-top:20px; display:none;">
               <label class="form-label">Copy generado</label>
@@ -1016,6 +1036,87 @@
           <span id="x-posts-count" style="font-size:11.5px; color:var(--text-faint); font-family:var(--font-mono);"></span>
         </div>
         <div id="x-posts-list"></div>
+      </div>
+    </section>
+
+    <!-- INFORME MENSUAL -->
+    <section class="panel" id="panel-informe">
+
+      <div class="card hoverable" style="margin-bottom:18px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+          <div>
+            <h3 style="margin-bottom:4px;">📰 Informe Mensual — Instagram</h3>
+            <div style="font-size:12.5px; color:var(--text-faint);">Seleccioná el mes y generá el informe completo.</div>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <select id="informe-mes" class="form-input" style="width:auto;">
+              <option value="2026-06">Junio 2026</option>
+              <option value="2026-05">Mayo 2026</option>
+              <option value="2026-04">Abril 2026</option>
+            </select>
+            <button class="btn gold" onclick="generarInforme()">📊 Generar informe</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="informe-content" style="display:none;">
+
+        <!-- KPIs del mes -->
+        <div class="grid grid-4" style="margin-bottom:18px;" id="informe-kpis"></div>
+
+        <!-- Gráfico de crecimiento + mejor post -->
+        <div class="grid grid-2" style="margin-bottom:18px;">
+          <div class="card hoverable">
+            <h3>Crecimiento de seguidores</h3>
+            <div id="informe-growth-chart"></div>
+          </div>
+          <div class="card hoverable" id="informe-best-card">
+            <h3>🏆 Mejor publicación del mes</h3>
+            <div id="informe-best-content"></div>
+          </div>
+        </div>
+
+        <!-- Contenido del mes -->
+        <div class="grid grid-2" style="margin-bottom:18px;">
+          <div class="card hoverable">
+            <h3>Mix de contenido del mes</h3>
+            <div id="informe-mix-chart"></div>
+          </div>
+          <div class="card hoverable">
+            <h3>Ranking de publicaciones por interacción</h3>
+            <div id="informe-posts-ranking"></div>
+          </div>
+        </div>
+
+        <!-- Audiencia del mes -->
+        <div class="grid grid-2" style="margin-bottom:18px;">
+          <div class="card hoverable">
+            <h3>📍 De dónde son los seguidores</h3>
+            <div id="informe-cities-chart"></div>
+          </div>
+          <div class="card hoverable">
+            <h3>Distribución por género</h3>
+            <div id="informe-gender-chart"></div>
+          </div>
+        </div>
+
+        <!-- Resumen IA -->
+        <div class="card hoverable" style="margin-bottom:18px;" id="informe-ia-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+            <h3 style="margin-bottom:0;">🤖 Resumen ejecutivo (generado por IA)</h3>
+            <button class="btn ghost" onclick="generarResumenIA()" id="informe-ia-btn">Generar resumen con IA</button>
+          </div>
+          <div id="informe-ia-text" class="ig-empty-note">Clickeá "Generar resumen con IA" para obtener un análisis narrativo del mes, listo para presentar en Comisión Directiva.</div>
+        </div>
+
+        <!-- Botón de impresión -->
+        <div style="text-align:center; margin-top:8px;">
+          <button class="btn ghost" onclick="window.print()">🖨️ Imprimir / Exportar PDF</button>
+        </div>
+
+      </div>
+      <div id="informe-empty" class="ig-empty-note" style="margin-top:8px;">
+        Hacé click en "Generar informe" para ver el resumen del mes seleccionado.
       </div>
     </section>
 
@@ -1839,6 +1940,179 @@
       </div>`).join('');
   }
 
+  /* ============ INFORME MENSUAL ============ */
+
+  let informeData = null; // guardamos los datos del último informe para el resumen IA
+
+  const MES_NOMBRES = {
+    '01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio',
+    '07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre'
+  };
+
+  async function generarInforme(){
+    const mesVal = document.getElementById('informe-mes').value; // "2026-06"
+    const [year, month] = mesVal.split('-');
+    const mesNombre = `${MES_NOMBRES[month]} ${year}`;
+
+    if(!lastIgProfile){
+      showToast('Primero conectá Instagram en "Redes & Campañas".');
+      return;
+    }
+
+    // Filtrar posts del mes seleccionado
+    const postsMes = (lastIgPosts||[]).filter(p => {
+      const d = new Date(p.timestamp);
+      return d.getFullYear() === parseInt(year) && (d.getMonth()+1) === parseInt(month);
+    });
+
+    // Filtrar historial del mes
+    const histMes = (lastIgHistory||[]).filter(h => h.date.startsWith(mesVal));
+    const crecimiento = histMes.length >= 2
+      ? histMes[histMes.length-1].followers_count - histMes[0].followers_count
+      : null;
+
+    const totalLikes = postsMes.reduce((a,p) => a+(p.like_count||0), 0);
+    const totalComents = postsMes.reduce((a,p) => a+(p.comments_count||0), 0);
+    const avgEngagement = postsMes.length ? Math.round((totalLikes+totalComents)/postsMes.length) : 0;
+
+    const mejorPost = postsMes.length
+      ? [...postsMes].sort((a,b) => ((b.like_count||0)+(b.comments_count||0)) - ((a.like_count||0)+(a.comments_count||0)))[0]
+      : null;
+
+    // Guardamos para el resumen IA
+    informeData = {
+      mes: mesNombre,
+      posts: postsMes.length,
+      totalLikes, totalComents,
+      avgEngagement,
+      crecimiento,
+      seguidoresActuales: lastIgProfile.followers_count,
+      alcance30d: lastIgInsights?.reach30d ?? null,
+      visitasPerfil30d: lastIgInsights?.profileViews30d ?? null,
+      mejorPost: mejorPost ? { caption: (mejorPost.caption||'').slice(0,80), likes: mejorPost.like_count, comentarios: mejorPost.comments_count } : null,
+    };
+
+    document.getElementById('informe-empty').style.display = 'none';
+    document.getElementById('informe-content').style.display = 'block';
+
+    // --- KPIs ---
+    document.getElementById('informe-kpis').innerHTML = [
+      { label:'Posts publicados', val: postsMes.length, sub: 'en ' + mesNombre },
+      { label:'Interacción total', val: (totalLikes+totalComents).toLocaleString('es-AR'), sub: 'likes + comentarios' },
+      { label:'Promedio por post', val: avgEngagement.toLocaleString('es-AR'), sub: 'likes + comentarios' },
+      { label:'Nuevos seguidores', val: crecimiento !== null ? (crecimiento>=0?'+':'')+crecimiento.toLocaleString('es-AR') : '—', sub: crecimiento !== null ? 'en el mes' : 'historial insuficiente' },
+    ].map(k => `
+      <div class="card kpi">
+        <h3>${k.label}</h3>
+        <div class="num" style="font-size:26px;">${k.val}</div>
+        <div class="delta" style="color:var(--text-faint);">${k.sub}</div>
+      </div>`).join('');
+
+    // --- Gráfico de crecimiento del mes ---
+    const growthEl = document.getElementById('informe-growth-chart');
+    if(histMes.length >= 2){
+      const labels = histMes.map(h => h.date.slice(5));
+      areaChart(growthEl, histMes.map(h => h.followers_count), { h:130, colorHex:'#02632E', labels });
+    } else {
+      growthEl.innerHTML = `<div class="ig-empty-note">No hay suficiente historial para este mes. El informe va a ser más completo el mes que viene.</div>`;
+    }
+
+    // --- Mejor post ---
+    if(mejorPost){
+      document.getElementById('informe-best-content').innerHTML = `
+        <div class="best-post-wrap">
+          ${thumbHtml(mejorPost)}
+          <div style="flex:1; min-width:0;">
+            <div class="caption">${(mejorPost.caption||'(sin texto)').slice(0,90)}${(mejorPost.caption||'').length>90?'…':''}</div>
+            <div class="meta">${TIPO_LABEL[mejorPost.media_type]||mejorPost.media_type} · ${formatFechaPost(mejorPost.timestamp)} · <a href="${mejorPost.permalink}" target="_blank" style="color:inherit;">Ver ↗</a></div>
+          </div>
+          <div class="best-post-metrics">
+            <div><b>${(mejorPost.like_count||0).toLocaleString('es-AR')}</b><span>Likes</span></div>
+            <div><b>${(mejorPost.comments_count||0).toLocaleString('es-AR')}</b><span>Coment.</span></div>
+          </div>
+        </div>`;
+    } else {
+      document.getElementById('informe-best-content').innerHTML = `<div class="ig-empty-note">Sin posts para este mes.</div>`;
+    }
+
+    // --- Mix de contenido (donut) ---
+    const mixEl = document.getElementById('informe-mix-chart');
+    const mixSegsMes = buildMixSegments(postsMes);
+    if(mixSegsMes.length){
+      mixEl.innerHTML = '';
+      donut(mixEl, mixSegsMes, { size:140, stroke:18 });
+    } else {
+      mixEl.innerHTML = `<div class="ig-empty-note">Sin posts este mes.</div>`;
+    }
+
+    // --- Ranking de posts ---
+    const rankEl = document.getElementById('informe-posts-ranking');
+    const ordenados = [...postsMes].sort((a,b) => ((b.like_count||0)+(b.comments_count||0)) - ((a.like_count||0)+(a.comments_count||0))).slice(0,8);
+    if(ordenados.length){
+      rankEl.innerHTML = ordenados.map((p,i) => `
+        <div class="informe-rank-row">
+          <div class="informe-rank-num">${i+1}</div>
+          ${thumbHtml(p).replace('class="post-thumb', 'style="width:32px; height:32px; border-radius:6px; flex-shrink:0;" class="post-thumb')}
+          <div class="informe-rank-txt" title="${(p.caption||'(sin texto)').slice(0,80)}">${(p.caption||'(sin texto)').slice(0,45)}…</div>
+          <div class="informe-rank-val">${((p.like_count||0)+(p.comments_count||0)).toLocaleString('es-AR')} inter.</div>
+          <a href="${p.permalink}" target="_blank" class="permalink" style="font-size:12px;">↗</a>
+        </div>`).join('');
+    } else {
+      rankEl.innerHTML = `<div class="ig-empty-note">Sin posts este mes.</div>`;
+    }
+
+    // --- Audiencia (ciudades y género del total, no solo del mes) ---
+    const citiesEl = document.getElementById('informe-cities-chart');
+    if(lastIgAudience?.topCities.length){
+      citiesEl.innerHTML = barsHtml(lastIgAudience.topCities, '#02632E');
+    } else {
+      citiesEl.innerHTML = `<div class="ig-empty-note">Sin datos de audiencia disponibles.</div>`;
+    }
+    const genderEl = document.getElementById('informe-gender-chart');
+    const { genderSegments } = aggregateAudienceAgeGender(lastIgAudience?.ageGender||[]);
+    if(genderSegments.length){
+      genderEl.innerHTML = '';
+      donut(genderEl, genderSegments, { size:140, stroke:18 });
+    } else {
+      genderEl.innerHTML = `<div class="ig-empty-note">Sin datos de género disponibles.</div>`;
+    }
+
+    document.getElementById('informe-ia-text').innerHTML = `<div class="ig-empty-note">Clickeá "Generar resumen con IA" para obtener un análisis narrativo del mes listo para presentar en Comisión Directiva.</div>`;
+    document.getElementById('informe-ia-btn').textContent = 'Generar resumen con IA';
+  }
+
+  async function generarResumenIA(){
+    if(!informeData){
+      showToast('Generá el informe primero.');
+      return;
+    }
+    const btn = document.getElementById('informe-ia-btn');
+    const textEl = document.getElementById('informe-ia-text');
+    btn.disabled = true;
+    btn.textContent = 'Generando…';
+    textEl.innerHTML = `<div class="ig-empty-note">La IA está analizando los datos del mes…</div>`;
+
+    try{
+      const res = await fetch('/.netlify/functions/monthly-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mes: informeData.mes, datos: informeData }),
+      });
+      const data = await res.json();
+      if(data.error) throw new Error(data.error);
+      textEl.innerHTML = `<div class="informe-ia-bubble">${data.resumen.replace(/\n/g,'<br>')}</div>
+        <div style="display:flex; gap:10px; margin-top:12px;">
+          <button class="btn ghost" onclick="navigator.clipboard.writeText(document.getElementById('informe-ia-text').querySelector('.informe-ia-bubble').innerText).then(()=>showToast('Copiado'))">📋 Copiar</button>
+          <button class="btn ghost" onclick="generarResumenIA()">🔄 Regenerar</button>
+        </div>`;
+    }catch(e){
+      textEl.innerHTML = `<div class="ig-empty-note" style="color:var(--red);">No se pudo conectar con la IA: ${e.message}. Verificá que la función esté desplegada y la clave configurada.</div>`;
+    }finally{
+      btn.disabled = false;
+      btn.textContent = 'Generar resumen con IA';
+    }
+  }
+
   /* ============ GENERADOR DE COPIES ============ */
   // Plantillas armadas a partir del tono real de @excursiooficial:
   // títulos en "negrita fancy" (unicode), emojis recurrentes, y los
@@ -1921,6 +2195,43 @@
       .catch(() => showToast('No se pudo copiar automáticamente — seleccioná el texto a mano.'));
   }
 
+  async function generarCopyConIA(){
+    const titulo = document.getElementById('copy-titulo').value.trim();
+    const detalle = document.getElementById('copy-detalle').value.trim();
+    const statusEl = document.getElementById('copy-ia-status');
+    const btn = document.getElementById('copy-ia-btn');
+
+    if(!titulo){
+      showToast('Escribí al menos un título o tema para generar el copy.');
+      return;
+    }
+
+    btn.disabled = true;
+    statusEl.textContent = 'Pensando con IA…';
+    statusEl.style.color = 'var(--text-faint)';
+
+    try{
+      const res = await fetch('/.netlify/functions/generate-copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: copyTipoActual, titulo, detalle }),
+      });
+      const data = await res.json();
+      if(data.error) throw new Error(data.error);
+
+      document.getElementById('copy-result-text').value = data.texto;
+      document.getElementById('copy-result-area').style.display = 'block';
+      document.getElementById('copy-mock-caption').innerHTML = `<b>excursiooficial</b> ` + data.texto.replace(/\n/g,'<br>');
+      statusEl.textContent = '✓ Generado con Claude (IA real).';
+      statusEl.style.color = 'var(--bg-deep)';
+    }catch(e){
+      statusEl.textContent = 'No se pudo conectar con la IA — ¿está la función desplegada y la clave configurada?';
+      statusEl.style.color = 'var(--red)';
+    }finally{
+      btn.disabled = false;
+    }
+  }
+
   /* ============ NAV ============ */
   const titles = {
     resumen: ["Resumen general", "Vista consolidada del club, hoy"],
@@ -1931,6 +2242,7 @@
     juveniles: ["Jugadores Juveniles", "Fichas, documentación y seguimiento deportivo"],
     sponsors: ["Sponsors", "Reportes y métricas para acuerdos comerciales"],
     redes: ["Redes & Campañas", "Rendimiento en redes sociales"],
+    informe: ["Informe Mensual", "Resumen ejecutivo de rendimiento en Instagram"],
     ia: ["Recomendaciones IA", "Generadas a partir de los datos del club"]
   };
   function goPanel(name){
