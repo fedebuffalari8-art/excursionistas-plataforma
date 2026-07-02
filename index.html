@@ -1062,7 +1062,7 @@
       <div id="informe-content" style="display:none;">
 
         <!-- KPIs del mes -->
-        <div class="grid grid-4" style="margin-bottom:18px;" id="informe-kpis"></div>
+        <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:18px; margin-bottom:18px;" id="informe-kpis"></div>
 
         <!-- Gráfico de crecimiento + mejor post -->
         <div class="grid grid-2" style="margin-bottom:18px;">
@@ -1998,12 +1998,14 @@
 
     // KPIs
     const nuevosStr = newFollowers !== null ? (newFollowers>=0?'+':'')+newFollowers.toLocaleString('es-AR') : '—';
+    const alcanceStr = reachMes !== null ? reachMes.toLocaleString('es-AR') : '—';
     document.getElementById('informe-kpis').innerHTML = [
       { label:'Posts publicados', val: postsMes.length, sub: 'en ' + mesNombre },
       { label:'Interacción total', val: (totalLikes+totalComents).toLocaleString('es-AR'), sub: 'likes + comentarios' },
       { label:'Promedio por post', val: avgEngagement.toLocaleString('es-AR'), sub: 'likes + comentarios' },
       { label:'Nuevos seguidores', val: nuevosStr, sub: newFollowers !== null ? 'seguidores ganados' : 'dato no disponible' },
-    ].map(k => `<div class="card kpi"><h3>${k.label}</h3><div class="num" style="font-size:26px;">${k.val}</div><div class="delta" style="color:var(--text-faint);">${k.sub}</div></div>`).join('');
+      { label:'Alcance del mes', val: alcanceStr, sub: reachMes !== null ? 'cuentas alcanzadas' : 'dato no disponible' },
+    ].map(k => `<div class="card kpi"><h3>${k.label}</h3><div class="num" style="font-size:24px;">${k.val}</div><div class="delta" style="color:var(--text-faint);">${k.sub}</div></div>`).join('');
 
     // Gráfico de crecimiento (solo snapshots absolutos >= 5000)
     const histMes = (lastIgHistory||[]).filter(h => h.date.startsWith(mesVal) && h.followers_count >= 5000);
