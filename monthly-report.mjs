@@ -1,8 +1,4 @@
 // netlify/functions/monthly-report.mjs
-//
-// Recibe los datos del mes (posts, seguidores, alcance, etc.) y pide a
-// Claude Haiku que escriba un resumen ejecutivo en español, listo para
-// copiar en un mail o presentar en una reunión de Comisión Directiva.
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 
@@ -12,25 +8,48 @@ export default async (request) => {
   }
 
   let body;
-  try { body = await request.json(); } catch (e) {
-    return Response.json({ error: 'JSON inválido.' }, { status: 400 });
+  try {
+    const text = await request.text();
+    if (!text) return Response.json({ error: 'Body vacío.' }, { status: 400 });
+    body = JSON.parse(text);
+  } catch (e) {
+    return Response.json({ error: 'JSON inválido: ' + e.message }, { status: 400 });
   }
 
   const { mes, datos } = body;
+  if (!mes || !datos) {
+    return Response.json({ error: 'Faltan los campos "mes" o "datos".' }, { status: 400 });
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return Response.json({ error: 'Variable ANTHROPIC_API_KEY no configurada en Netlify.' }, { status: 500 });
+  }
+
+  const resumenDatos = {
+    mes,
+    postsPublicados: datos.posts,
+    likesTotales: datos.totalLikes,
+    comentariosTotales: datos.totalComents,
+    promedioInteraccionPorPost: datos.avgEngagement,
+    nuevosSeguidores: datos.newFollowers,
+    alcanceMes: datos.reachMes,
+    seguidoresActuales: datos.seguidoresActuales,
+    mejorPost: datos.mejorPost
+      ? `"${(datos.mejorPost.caption || '').slice(0, 60)}…" — ${datos.mejorPost.likes} likes, ${datos.mejorPost.comentarios} comentarios`
+      : null,
+  };
 
   const prompt = `Sos el community manager del Club Atlético Excursionistas.
-Escribí un RESUMEN EJECUTIVO del desempeño de Instagram en ${mes}, usando estos datos:
+Escribí un RESUMEN EJECUTIVO del desempeño de Instagram en ${mes}:
 
-${JSON.stringify(datos, null, 2)}
+${JSON.stringify(resumenDatos, null, 2)}
 
-El resumen debe:
-- Estar en español, tono profesional pero cálido.
-- Tener entre 150 y 250 palabras.
-- Destacar los logros más importantes (crecimiento, mejor contenido, alcance).
-- Mencionar qué tipo de contenido funcionó mejor y por qué.
-- Cerrar con una recomendación puntual para el mes siguiente.
-- NO repetir todos los números literalmente — interpretarlos y darles contexto.
-- Respondé ÚNICAMENTE con el texto del resumen, sin títulos ni viñetas.`;
+Reglas:
+- Español, tono profesional y cálido, entre 150 y 220 palabras.
+- Destacá logros, el mejor contenido y qué tipo funcionó más.
+- Cerrá con UNA recomendación concreta para el mes siguiente.
+- No repitas los números literalmente, interpretarlos.
+- Solo el texto del resumen, sin títulos ni viñetas.`;
 
   try {
     const res = await fetch(ANTHROPIC_URL, {
@@ -42,14 +61,24 @@ El resumen debe:
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
+        max_tokens: 500,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      return Response.json({ error: `Anthropic devolvió ${res.status}: ${errText.slice(0, 200)}` }, { status: 502 });
+    }
+
     const json = await res.json();
-    if (json.error) throw new Error(json.error.message);
-    return Response.json({ resumen: json.content?.[0]?.text?.trim() || '' });
+    if (json.error) return Response.json({ error: json.error.message || 'Error de Anthropic' }, { status: 502 });
+
+    const resumen = json.content?.[0]?.text?.trim() || '';
+    if (!resumen) return Response.json({ error: 'La IA devolvió una respuesta vacía.' }, { status: 502 });
+
+    return Response.json({ resumen });
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 });
+    return Response.json({ error: 'Error de red al contactar Anthropic: ' + e.message }, { status: 500 });
   }
 };
