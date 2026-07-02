@@ -1950,7 +1950,7 @@
   };
 
   async function generarInforme(){
-    const mesVal = document.getElementById('informe-mes').value; // "2026-06"
+    const mesVal = document.getElementById('informe-mes').value;
     const [year, month] = mesVal.split('-');
     const mesNombre = `${MES_NOMBRES[month]} ${year}`;
 
@@ -1959,123 +1959,102 @@
       return;
     }
 
-    // Filtrar posts del mes seleccionado
-    const postsMes = (lastIgPosts||[]).filter(p => {
-      const d = new Date(p.timestamp);
-      return d.getFullYear() === parseInt(year) && (d.getMonth()+1) === parseInt(month);
-    });
+    document.getElementById('informe-empty').style.display = 'none';
+    document.getElementById('informe-content').style.display = 'block';
+    document.getElementById('informe-kpis').innerHTML = `<div class="card kpi"><h3>Cargando…</h3><div class="num" style="font-size:18px; color:var(--text-faint);">…</div></div><div class="card kpi"></div><div class="card kpi"></div><div class="card kpi"></div>`;
+    document.getElementById('informe-posts-ranking').innerHTML = `<div class="ig-empty-note">Cargando todos los posts de ${mesNombre}…</div>`;
 
-    // Filtrar historial del mes
-    const histMes = (lastIgHistory||[]).filter(h => h.date.startsWith(mesVal));
-    const crecimiento = histMes.length >= 2
-      ? histMes[histMes.length-1].followers_count - histMes[0].followers_count
-      : null;
+    // Endpoint específico con paginación para traer TODOS los posts del mes
+    let postsMes = [];
+    let newFollowers = null;
+    let reachMes = null;
+    try{
+      const r = await fetch(`/.netlify/functions/ig-posts-month?month=${mesVal}`);
+      const d = await r.json();
+      if(d.error) throw new Error(d.error);
+      postsMes = d.posts || [];
+      newFollowers = d.newFollowers;
+      reachMes = d.reachMes;
+    }catch(e){
+      // Fallback: filtrar de los que tenemos en memoria
+      postsMes = (lastIgPosts||[]).filter(p => p.timestamp?.startsWith(mesVal));
+      showToast('Usando posts en memoria — para el informe completo subí ig-posts-month.mjs a GitHub.');
+    }
 
     const totalLikes = postsMes.reduce((a,p) => a+(p.like_count||0), 0);
     const totalComents = postsMes.reduce((a,p) => a+(p.comments_count||0), 0);
     const avgEngagement = postsMes.length ? Math.round((totalLikes+totalComents)/postsMes.length) : 0;
-
     const mejorPost = postsMes.length
       ? [...postsMes].sort((a,b) => ((b.like_count||0)+(b.comments_count||0)) - ((a.like_count||0)+(a.comments_count||0)))[0]
       : null;
 
-    // Guardamos para el resumen IA
     informeData = {
-      mes: mesNombre,
-      posts: postsMes.length,
-      totalLikes, totalComents,
-      avgEngagement,
-      crecimiento,
+      mes: mesNombre, posts: postsMes.length, totalLikes, totalComents,
+      avgEngagement, newFollowers, reachMes,
       seguidoresActuales: lastIgProfile.followers_count,
       alcance30d: lastIgInsights?.reach30d ?? null,
-      visitasPerfil30d: lastIgInsights?.profileViews30d ?? null,
       mejorPost: mejorPost ? { caption: (mejorPost.caption||'').slice(0,80), likes: mejorPost.like_count, comentarios: mejorPost.comments_count } : null,
     };
 
-    document.getElementById('informe-empty').style.display = 'none';
-    document.getElementById('informe-content').style.display = 'block';
-
-    // --- KPIs ---
+    // KPIs
+    const nuevosStr = newFollowers !== null ? (newFollowers>=0?'+':'')+newFollowers.toLocaleString('es-AR') : '—';
     document.getElementById('informe-kpis').innerHTML = [
       { label:'Posts publicados', val: postsMes.length, sub: 'en ' + mesNombre },
       { label:'Interacción total', val: (totalLikes+totalComents).toLocaleString('es-AR'), sub: 'likes + comentarios' },
       { label:'Promedio por post', val: avgEngagement.toLocaleString('es-AR'), sub: 'likes + comentarios' },
-      { label:'Nuevos seguidores', val: crecimiento !== null ? (crecimiento>=0?'+':'')+crecimiento.toLocaleString('es-AR') : '—', sub: crecimiento !== null ? 'en el mes' : 'historial insuficiente' },
-    ].map(k => `
-      <div class="card kpi">
-        <h3>${k.label}</h3>
-        <div class="num" style="font-size:26px;">${k.val}</div>
-        <div class="delta" style="color:var(--text-faint);">${k.sub}</div>
-      </div>`).join('');
+      { label:'Nuevos seguidores', val: nuevosStr, sub: newFollowers !== null ? 'seguidores ganados' : 'dato no disponible' },
+    ].map(k => `<div class="card kpi"><h3>${k.label}</h3><div class="num" style="font-size:26px;">${k.val}</div><div class="delta" style="color:var(--text-faint);">${k.sub}</div></div>`).join('');
 
-    // --- Gráfico de crecimiento del mes ---
+    // Gráfico de crecimiento (solo snapshots absolutos >= 5000)
+    const histMes = (lastIgHistory||[]).filter(h => h.date.startsWith(mesVal) && h.followers_count >= 5000);
     const growthEl = document.getElementById('informe-growth-chart');
     if(histMes.length >= 2){
-      const labels = histMes.map(h => h.date.slice(5));
-      areaChart(growthEl, histMes.map(h => h.followers_count), { h:130, colorHex:'#02632E', labels });
+      areaChart(growthEl, histMes.map(h => h.followers_count), { h:130, colorHex:'#02632E', labels: histMes.map(h => h.date.slice(8)) });
     } else {
-      growthEl.innerHTML = `<div class="ig-empty-note">No hay suficiente historial para este mes. El informe va a ser más completo el mes que viene.</div>`;
+      growthEl.innerHTML = `<div class="ig-empty-note">La curva de crecimiento se va armando con el registro diario — ya tenemos el punto de hoy (${lastIgProfile.followers_count.toLocaleString('es-AR')} seguidores). Aparecerá completa el mes que viene.</div>`;
     }
 
-    // --- Mejor post ---
-    if(mejorPost){
-      document.getElementById('informe-best-content').innerHTML = `
-        <div class="best-post-wrap">
-          ${thumbHtml(mejorPost)}
-          <div style="flex:1; min-width:0;">
-            <div class="caption">${(mejorPost.caption||'(sin texto)').slice(0,90)}${(mejorPost.caption||'').length>90?'…':''}</div>
-            <div class="meta">${TIPO_LABEL[mejorPost.media_type]||mejorPost.media_type} · ${formatFechaPost(mejorPost.timestamp)} · <a href="${mejorPost.permalink}" target="_blank" style="color:inherit;">Ver ↗</a></div>
-          </div>
-          <div class="best-post-metrics">
-            <div><b>${(mejorPost.like_count||0).toLocaleString('es-AR')}</b><span>Likes</span></div>
-            <div><b>${(mejorPost.comments_count||0).toLocaleString('es-AR')}</b><span>Coment.</span></div>
-          </div>
-        </div>`;
-    } else {
-      document.getElementById('informe-best-content').innerHTML = `<div class="ig-empty-note">Sin posts para este mes.</div>`;
-    }
+    // Mejor post
+    const bestEl = document.getElementById('informe-best-content');
+    bestEl.innerHTML = mejorPost ? `
+      <div class="best-post-wrap">
+        ${thumbHtml(mejorPost)}
+        <div style="flex:1; min-width:0;">
+          <div class="caption">${(mejorPost.caption||'(sin texto)').slice(0,90)}${(mejorPost.caption||'').length>90?'…':''}</div>
+          <div class="meta">${TIPO_LABEL[mejorPost.media_type]||mejorPost.media_type} · ${formatFechaPost(mejorPost.timestamp)} · <a href="${mejorPost.permalink}" target="_blank" style="color:inherit;">Ver ↗</a></div>
+        </div>
+        <div class="best-post-metrics">
+          <div><b>${(mejorPost.like_count||0).toLocaleString('es-AR')}</b><span>Likes</span></div>
+          <div><b>${(mejorPost.comments_count||0).toLocaleString('es-AR')}</b><span>Coment.</span></div>
+        </div>
+      </div>` : `<div class="ig-empty-note">Sin posts para este mes.</div>`;
 
-    // --- Mix de contenido (donut) ---
+    // Mix de contenido
     const mixEl = document.getElementById('informe-mix-chart');
-    const mixSegsMes = buildMixSegments(postsMes);
-    if(mixSegsMes.length){
-      mixEl.innerHTML = '';
-      donut(mixEl, mixSegsMes, { size:140, stroke:18 });
-    } else {
-      mixEl.innerHTML = `<div class="ig-empty-note">Sin posts este mes.</div>`;
-    }
+    const mixSegs = buildMixSegments(postsMes);
+    if(mixSegs.length){ mixEl.innerHTML = ''; donut(mixEl, mixSegs, { size:140, stroke:18 }); }
+    else { mixEl.innerHTML = `<div class="ig-empty-note">Sin posts este mes.</div>`; }
 
-    // --- Ranking de posts ---
+    // Ranking de posts (top 10)
     const rankEl = document.getElementById('informe-posts-ranking');
-    const ordenados = [...postsMes].sort((a,b) => ((b.like_count||0)+(b.comments_count||0)) - ((a.like_count||0)+(a.comments_count||0))).slice(0,8);
-    if(ordenados.length){
-      rankEl.innerHTML = ordenados.map((p,i) => `
-        <div class="informe-rank-row">
-          <div class="informe-rank-num">${i+1}</div>
-          ${thumbHtml(p).replace('class="post-thumb', 'style="width:32px; height:32px; border-radius:6px; flex-shrink:0;" class="post-thumb')}
-          <div class="informe-rank-txt" title="${(p.caption||'(sin texto)').slice(0,80)}">${(p.caption||'(sin texto)').slice(0,45)}…</div>
-          <div class="informe-rank-val">${((p.like_count||0)+(p.comments_count||0)).toLocaleString('es-AR')} inter.</div>
-          <a href="${p.permalink}" target="_blank" class="permalink" style="font-size:12px;">↗</a>
-        </div>`).join('');
-    } else {
-      rankEl.innerHTML = `<div class="ig-empty-note">Sin posts este mes.</div>`;
-    }
+    const ordenados = [...postsMes].sort((a,b) => ((b.like_count||0)+(b.comments_count||0))-((a.like_count||0)+(a.comments_count||0))).slice(0,10);
+    rankEl.innerHTML = ordenados.length ? ordenados.map((p,i) => `
+      <div class="informe-rank-row">
+        <div class="informe-rank-num">${i+1}</div>
+        ${thumbHtml(p).replace('class="post-thumb','style="width:32px;height:32px;border-radius:6px;flex-shrink:0;" class="post-thumb')}
+        <div class="informe-rank-txt">${(p.caption||'(sin texto)').slice(0,45)}…</div>
+        <div class="informe-rank-val">${((p.like_count||0)+(p.comments_count||0)).toLocaleString('es-AR')} inter.</div>
+        <a href="${p.permalink}" target="_blank" class="permalink" style="font-size:12px;">↗</a>
+      </div>`).join('')
+    : `<div class="ig-empty-note">Sin posts este mes.</div>`;
 
-    // --- Audiencia (ciudades y género del total, no solo del mes) ---
+    // Audiencia
     const citiesEl = document.getElementById('informe-cities-chart');
-    if(lastIgAudience?.topCities.length){
-      citiesEl.innerHTML = barsHtml(lastIgAudience.topCities, '#02632E');
-    } else {
-      citiesEl.innerHTML = `<div class="ig-empty-note">Sin datos de audiencia disponibles.</div>`;
-    }
+    citiesEl.innerHTML = lastIgAudience?.topCities.length ? barsHtml(lastIgAudience.topCities, '#02632E') : `<div class="ig-empty-note">Sin datos de audiencia.</div>`;
     const genderEl = document.getElementById('informe-gender-chart');
     const { genderSegments } = aggregateAudienceAgeGender(lastIgAudience?.ageGender||[]);
-    if(genderSegments.length){
-      genderEl.innerHTML = '';
-      donut(genderEl, genderSegments, { size:140, stroke:18 });
-    } else {
-      genderEl.innerHTML = `<div class="ig-empty-note">Sin datos de género disponibles.</div>`;
-    }
+    if(genderSegments.length){ genderEl.innerHTML = ''; donut(genderEl, genderSegments, { size:140, stroke:18 }); }
+    else { genderEl.innerHTML = `<div class="ig-empty-note">Sin datos de género.</div>`; }
 
     document.getElementById('informe-ia-text').innerHTML = `<div class="ig-empty-note">Clickeá "Generar resumen con IA" para obtener un análisis narrativo del mes listo para presentar en Comisión Directiva.</div>`;
     document.getElementById('informe-ia-btn').textContent = 'Generar resumen con IA';
