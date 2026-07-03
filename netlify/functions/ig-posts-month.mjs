@@ -27,7 +27,7 @@ export default async (request) => {
   const tokens = await store.get('tokens', { type: 'json' });
   if (!tokens) return Response.json({ error: 'No conectado' }, { status: 412 });
 
-  const fields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count';
+  const fields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,video_views,insights.metric(impressions,reach){values}';
   const allPosts = [];
   let nextUrl = `${GRAPH}/${tokens.igUserId}/media?fields=${fields}&limit=50&access_token=${tokens.pageAccessToken}`;
 
@@ -45,18 +45,17 @@ export default async (request) => {
           doneWithMonth = true;
           break;
         }
+        // postMonth > yearMonth: son más recientes, seguimos
       }
       if (doneWithMonth) break;
       nextUrl = page.paging?.next || null;
       if (allPosts.length > 300) break;
     }
 
+    // También traemos los deltas del mes para "nuevos seguidores"
     const [y, m] = yearMonth.split('-');
     const monthStart = Math.floor(new Date(`${y}-${m}-01T00:00:00Z`).getTime() / 1000);
-    const nextM = String(parseInt(m) + 1).padStart(2, '0');
-    const nextY = parseInt(m) === 12 ? String(parseInt(y) + 1) : y;
-    const nextMonth = parseInt(m) === 12 ? '01' : nextM;
-    const monthEnd = Math.floor(new Date(`${nextY}-${nextMonth}-01T00:00:00Z`).getTime() / 1000);
+    const monthEnd = Math.floor(new Date(`${y}-${String(parseInt(m)+1).padStart(2,'0')}-01T00:00:00Z`).getTime() / 1000);
 
     let newFollowers = null;
     try {
@@ -69,7 +68,9 @@ export default async (request) => {
       }
     } catch (e) {}
 
+    // Reach del mes
     let reachMes = null;
+    let impressionsMes = null;
     try {
       const reachRes = await graph(
         `${GRAPH}/${tokens.igUserId}/insights?metric=reach&period=day&since=${monthStart}&until=${monthEnd}&access_token=${tokens.pageAccessToken}`
@@ -78,7 +79,15 @@ export default async (request) => {
       if (metric?.values) reachMes = metric.values.reduce((a, v) => a + (v.value || 0), 0);
     } catch (e) {}
 
-    return Response.json({ posts: allPosts, newFollowers, reachMes });
+    try {
+      const impRes = await graph(
+        `${GRAPH}/${tokens.igUserId}/insights?metric=impressions&period=day&since=${monthStart}&until=${monthEnd}&access_token=${tokens.pageAccessToken}`
+      );
+      const m = impRes.data?.find(d => d.name === 'impressions');
+      if (m?.values) impressionsMes = m.values.reduce((a, v) => a + (v.value || 0), 0);
+    } catch (e) {}
+
+    return Response.json({ posts: allPosts, newFollowers, reachMes, impressionsMes });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
