@@ -11,9 +11,17 @@ async function graph(url) {
   return json;
 }
 
+// Guarda el snapshot de HOY con el número ABSOLUTO de seguidores.
+// Solo guarda entradas con valores que parecen cuentas absolutas reales
+// (más de 1000 seguidores), así filtra los deltas diarios contaminados
+// que se guardaron antes por error.
 async function recordSnapshot(store, followersCount, mediaCount) {
   let history = (await store.get('history', { type: 'json' })) || [];
+
+  // Limpiar entradas contaminadas (valores claramente no-absolutos: < 5000)
+  // manteniendo solo snapshots razonables para una cuenta de club.
   history = history.filter(h => h.followers_count >= 5000);
+
   const today = new Date().toISOString().slice(0, 10);
   const idx = history.findIndex((h) => h.date === today);
   const entry = { date: today, followers_count: followersCount, media_count: mediaCount };
@@ -25,6 +33,9 @@ async function recordSnapshot(store, followersCount, mediaCount) {
   return trimmed;
 }
 
+// Trae el crecimiento diario (DELTA, no absoluto) de los últimos 30 días.
+// Lo devolvemos por separado para usarlo solo donde tiene sentido
+// (ej: "nuevos seguidores este mes" = suma de deltas del mes).
 async function fetchFollowerDeltas(igUserId, token) {
   try {
     const until = Math.floor(Date.now() / 1000);
@@ -40,6 +51,35 @@ async function fetchFollowerDeltas(igUserId, token) {
   } catch (e) {
     return [];
   }
+}
+
+// Trae todos los posts del mes indicado usando paginación.
+// Instagram devuelve los posts en orden cronológico inverso.
+async function fetchAllPostsForMonth(igUserId, token, yearMonth) {
+  const fields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count';
+  const allPosts = [];
+  let url = `${GRAPH}/${igUserId}/media?fields=${fields}&limit=50&access_token=${token}`;
+
+  while (url) {
+    const page = await graph(url);
+    if (!page.data?.length) break;
+
+    for (const post of page.data) {
+      const postMonth = post.timestamp?.slice(0, 7); // "2026-06"
+      if (postMonth === yearMonth) {
+        allPosts.push(post);
+      } else if (postMonth < yearMonth) {
+        // Los posts vienen en orden desc, si ya pasamos el mes buscado no hay más
+        return allPosts;
+      }
+    }
+
+    // Si todavía hay posts del mes o más recientes, seguimos paginando
+    url = page.paging?.next || null;
+    if (allPosts.length > 200) break; // límite de seguridad
+  }
+
+  return allPosts;
 }
 
 function sumMetric(insightsData, name) {
@@ -100,23 +140,27 @@ export default async (request) => {
       `${GRAPH}/${tokens.igUserId}?fields=followers_count,media_count,username&access_token=${tokens.pageAccessToken}`
     );
 
+    // Últimos 50 posts para el dashboard general (vistas recientes)
     const media = await graph(
-      `${GRAPH}/${tokens.igUserId}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=50&access_token=${tokens.pageAccessToken}`
+      `${GRAPH}/${tokens.igUserId}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,video_views,insights.metric(impressions,reach){values}&limit=50&access_token=${tokens.pageAccessToken}`
     );
 
+    // Deltas diarios de los últimos 35 días (para "nuevos seguidores del mes")
     const followerDeltas = await fetchFollowerDeltas(tokens.igUserId, tokens.pageAccessToken);
 
     const history = await recordSnapshot(store, profile.followers_count, profile.media_count);
 
     let reachTotal = null;
+    let impressionsTotal = null;
     let profileViewsTotal = null;
     try {
       const until = Math.floor(Date.now() / 1000);
       const since = until - 30 * 24 * 60 * 60;
       const insights = await graph(
-        `${GRAPH}/${tokens.igUserId}/insights?metric=reach,profile_views&period=day&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`
+        `${GRAPH}/${tokens.igUserId}/insights?metric=reach,impressions,profile_views&period=day&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`
       );
       reachTotal = sumMetric(insights.data, 'reach');
+      impressionsTotal = sumMetric(insights.data, 'impressions');
       profileViewsTotal = sumMetric(insights.data, 'profile_views');
     } catch (e) {}
 
@@ -129,7 +173,7 @@ export default async (request) => {
       posts: media.data || [],
       history,
       followerDeltas,
-      insights: { reach30d: reachTotal, profileViews30d: profileViewsTotal },
+      insights: { reach30d: reachTotal, impressions30d: impressionsTotal, profileViews30d: profileViewsTotal },
       audience,
       competitors,
     });
