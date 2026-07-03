@@ -1062,7 +1062,7 @@
       <div id="informe-content" style="display:none;">
 
         <!-- KPIs del mes -->
-        <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:18px; margin-bottom:18px;" id="informe-kpis"></div>
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-bottom:18px;" id="informe-kpis"></div>
 
         <!-- Gráfico de crecimiento + mejor post -->
         <div class="grid grid-2" style="margin-bottom:18px;">
@@ -1384,6 +1384,21 @@
     return Object.entries(counts).map(([label,value],i) => ({ label, value, colorHex: PALETTE[i%PALETTE.length] }));
   }
 
+  function getPostViews(p){
+    // video_views para videos/reels; impressions del inline insight para fotos
+    if(p.video_views) return p.video_views;
+    const imp = p.insights?.data?.find(d => d.name === 'impressions');
+    if(imp?.values?.[0]?.value) return imp.values[0].value;
+    return null;
+  }
+
+  function formatViews(n){
+    if(n === null || n === undefined) return '—';
+    if(n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+    if(n >= 1000) return (n/1000).toFixed(1) + 'K';
+    return n.toLocaleString('es-AR');
+  }
+
   const TIPO_LABEL = { IMAGE:'Foto', VIDEO:'Video', CAROUSEL_ALBUM:'Carrusel', REELS:'Reel' };
 
   function formatFechaPost(iso){
@@ -1435,6 +1450,7 @@
           <div class="meta">${TIPO_LABEL[p.media_type] || p.media_type} · ${formatFechaPost(p.timestamp)}</div>
         </div>
         <div class="post-detail-metrics">
+          <div><b>${formatViews(getPostViews(p))}</b>vistas</div>
           <div><b>${(p.like_count||0).toLocaleString('es-AR')}</b>likes</div>
           <div><b>${(p.comments_count||0).toLocaleString('es-AR')}</b>coment.</div>
         </div>
@@ -1968,6 +1984,7 @@
     let postsMes = [];
     let newFollowers = null;
     let reachMes = null;
+    let impressionsMes = null;
     try{
       const r = await fetch(`/.netlify/functions/ig-posts-month?month=${mesVal}`);
       const d = await r.json();
@@ -1975,6 +1992,7 @@
       postsMes = d.posts || [];
       newFollowers = d.newFollowers;
       reachMes = d.reachMes;
+      impressionsMes = d.impressionsMes;
     }catch(e){
       // Fallback: filtrar de los que tenemos en memoria
       postsMes = (lastIgPosts||[]).filter(p => p.timestamp?.startsWith(mesVal));
@@ -1990,7 +2008,7 @@
 
     informeData = {
       mes: mesNombre, posts: postsMes.length, totalLikes, totalComents,
-      avgEngagement, newFollowers, reachMes,
+      avgEngagement, newFollowers, reachMes, impressionsMes,
       seguidoresActuales: lastIgProfile.followers_count,
       alcance30d: lastIgInsights?.reach30d ?? null,
       mejorPost: mejorPost ? { caption: (mejorPost.caption||'').slice(0,80), likes: mejorPost.like_count, comentarios: mejorPost.comments_count } : null,
@@ -1999,13 +2017,15 @@
     // KPIs
     const nuevosStr = newFollowers !== null ? (newFollowers>=0?'+':'')+newFollowers.toLocaleString('es-AR') : '—';
     const alcanceStr = reachMes !== null ? reachMes.toLocaleString('es-AR') : '—';
+    const impStr = impressionsMes !== null ? impressionsMes.toLocaleString('es-AR') : '—';
     document.getElementById('informe-kpis').innerHTML = [
       { label:'Posts publicados', val: postsMes.length, sub: 'en ' + mesNombre },
+      { label:'Impresiones del mes', val: impStr, sub: 'veces que apareció el contenido' },
+      { label:'Alcance del mes', val: alcanceStr, sub: 'cuentas únicas alcanzadas' },
       { label:'Interacción total', val: (totalLikes+totalComents).toLocaleString('es-AR'), sub: 'likes + comentarios' },
-      { label:'Promedio por post', val: avgEngagement.toLocaleString('es-AR'), sub: 'likes + comentarios' },
+      { label:'Promedio por post', val: avgEngagement.toLocaleString('es-AR'), sub: 'interacciones promedio' },
       { label:'Nuevos seguidores', val: nuevosStr, sub: newFollowers !== null ? 'seguidores ganados' : 'dato no disponible' },
-      { label:'Alcance del mes', val: alcanceStr, sub: reachMes !== null ? 'cuentas alcanzadas' : 'dato no disponible' },
-    ].map(k => `<div class="card kpi"><h3>${k.label}</h3><div class="num" style="font-size:24px;">${k.val}</div><div class="delta" style="color:var(--text-faint);">${k.sub}</div></div>`).join('');
+    ].map(k => `<div class="card kpi"><h3>${k.label}</h3><div class="num" style="font-size:22px;">${k.val}</div><div class="delta" style="color:var(--text-faint);">${k.sub}</div></div>`).join('');
 
     // Gráfico de crecimiento (solo snapshots absolutos >= 5000)
     const histMes = (lastIgHistory||[]).filter(h => h.date.startsWith(mesVal) && h.followers_count >= 5000);
@@ -2040,14 +2060,19 @@
     // Ranking de posts (top 10)
     const rankEl = document.getElementById('informe-posts-ranking');
     const ordenados = [...postsMes].sort((a,b) => ((b.like_count||0)+(b.comments_count||0))-((a.like_count||0)+(a.comments_count||0))).slice(0,10);
-    rankEl.innerHTML = ordenados.length ? ordenados.map((p,i) => `
+    rankEl.innerHTML = ordenados.length ? ordenados.map((p,i) => {
+      const v = getPostViews(p);
+      return `
       <div class="informe-rank-row">
         <div class="informe-rank-num">${i+1}</div>
         ${thumbHtml(p).replace('class="post-thumb','style="width:32px;height:32px;border-radius:6px;flex-shrink:0;" class="post-thumb')}
-        <div class="informe-rank-txt">${(p.caption||'(sin texto)').slice(0,45)}…</div>
-        <div class="informe-rank-val">${((p.like_count||0)+(p.comments_count||0)).toLocaleString('es-AR')} inter.</div>
+        <div class="informe-rank-txt">${(p.caption||'(sin texto)').slice(0,38)}…</div>
+        ${v !== null ? `<div class="informe-rank-val" style="color:#7C8FC4;">${formatViews(v)} 👁</div>` : ''}
+        <div class="informe-rank-val">❤ ${(p.like_count||0).toLocaleString('es-AR')}</div>
+        <div class="informe-rank-val">💬 ${(p.comments_count||0).toLocaleString('es-AR')}</div>
         <a href="${p.permalink}" target="_blank" class="permalink" style="font-size:12px;">↗</a>
-      </div>`).join('')
+      </div>`;
+    }).join('')
     : `<div class="ig-empty-note">Sin posts este mes.</div>`;
 
     // Audiencia
@@ -2060,6 +2085,124 @@
 
     document.getElementById('informe-ia-text').innerHTML = `<div class="ig-empty-note">Clickeá "Generar resumen con IA" para obtener un análisis narrativo del mes listo para presentar en Comisión Directiva.</div>`;
     document.getElementById('informe-ia-btn').textContent = 'Generar resumen con IA';
+  }
+
+  function wrapTextCanvas(ctx, text, x, y, maxW, lineH){
+    const words = text.split(' ');
+    let line = '';
+    let currY = y;
+    for(const word of words){
+      const testLine = line + (line ? ' ' : '') + word;
+      if(ctx.measureText(testLine).width > maxW && line){
+        ctx.fillText(line, x, currY);
+        currY += lineH;
+        line = word;
+      } else {
+        line = testLine;
+      }
+    }
+    if(line) ctx.fillText(line, x, currY);
+    return currY + lineH;
+  }
+
+  function descargarImagenResumen(){
+    const resumenEl = document.getElementById('informe-ia-text')?.querySelector('.informe-ia-bubble');
+    if(!resumenEl || !informeData){ showToast('Generá el resumen primero.'); return; }
+    const texto = resumenEl.innerText;
+
+    const W = 1080, H = 1080;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    // Fondo verde del club
+    ctx.fillStyle = '#02632E';
+    ctx.fillRect(0, 0, W, H);
+
+    // Fondo interior más claro
+    ctx.fillStyle = '#013018';
+    ctx.roundRect(48, 48, W-96, H-96, 20);
+    ctx.fill();
+
+    // Línea dorada superior
+    ctx.fillStyle = '#C0A270';
+    ctx.fillRect(48, 48, W-96, 6);
+
+    // Escudo (texto alternativo si no está disponible)
+    ctx.fillStyle = '#C0A270';
+    ctx.font = 'bold 28px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('CLUB ATLÉTICO EXCURSIONISTAS', W/2, 130);
+
+    // Título del informe
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 48px sans-serif';
+    ctx.fillText('INFORME MENSUAL', W/2, 200);
+
+    ctx.fillStyle = '#C0A270';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText((informeData.mes||'').toUpperCase(), W/2, 252);
+
+    // Separador
+    ctx.strokeStyle = '#C0A270';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath();
+    ctx.moveTo(80, 280); ctx.lineTo(W-80, 280);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // KPIs resumidos (4 datos clave)
+    const kpis = [
+      { label: 'Posts', val: informeData.posts },
+      { label: 'Impresiones', val: informeData.impressionsMes ? informeData.impressionsMes.toLocaleString('es-AR') : '—' },
+      { label: 'Interacciones', val: ((informeData.totalLikes||0)+(informeData.totalComents||0)).toLocaleString('es-AR') },
+      { label: 'Nuevos seguid.', val: informeData.newFollowers !== null ? (informeData.newFollowers>=0?'+':'')+informeData.newFollowers.toLocaleString('es-AR') : '—' },
+    ];
+    const kpiW = (W-120) / 4;
+    kpis.forEach((k,i) => {
+      const x = 60 + i*kpiW + kpiW/2;
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.roundRect(60 + i*kpiW + 4, 295, kpiW-8, 90, 10);
+      ctx.fill();
+      ctx.fillStyle = '#C0A270';
+      ctx.font = 'bold 32px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(String(k.val), x, 345);
+      ctx.fillStyle = '#9DB39E';
+      ctx.font = '18px sans-serif';
+      ctx.fillText(k.label, x, 368);
+    });
+
+    // Separador
+    ctx.strokeStyle = 'rgba(192,162,112,0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(80, 405); ctx.lineTo(W-80, 405);
+    ctx.stroke();
+
+    // Texto del resumen
+    ctx.fillStyle = '#E7EEE6';
+    ctx.font = '26px sans-serif';
+    ctx.textAlign = 'left';
+    wrapTextCanvas(ctx, texto, 80, 440, W-160, 40);
+
+    // Footer
+    ctx.fillStyle = '#9DB39E';
+    ctx.font = '20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Club Inteligente · excursiooficial · Instagram', W/2, H-70);
+    ctx.fillStyle = '#C0A270';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText(informeData.mes || '', W/2, H-42);
+
+    // Descargar
+    const link = document.createElement('a');
+    link.download = `informe-${(informeData.mes||'mes').toLowerCase().replace(/ /g,'-')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showToast('Imagen descargada.');
   }
 
   function generarResumenIA(){
@@ -2142,8 +2285,9 @@
 
     setTimeout(() => {
       textEl.innerHTML = `<div class="informe-ia-bubble">${resumen.replace(/\n/g,'<br>')}</div>
-        <div style="display:flex; gap:10px; margin-top:12px;">
-          <button class="btn ghost" onclick="navigator.clipboard.writeText(document.getElementById('informe-ia-text').querySelector('.informe-ia-bubble').innerText).then(()=>showToast('Copiado'))">📋 Copiar</button>
+        <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
+          <button class="btn ghost" onclick="navigator.clipboard.writeText(document.getElementById('informe-ia-text').querySelector('.informe-ia-bubble').innerText).then(()=>showToast('Copiado'))">📋 Copiar texto</button>
+          <button class="btn gold" onclick="descargarImagenResumen()">🖼 Descargar como imagen</button>
           <button class="btn ghost" onclick="generarResumenIA()">🔄 Otra variante</button>
         </div>`;
       btn.disabled = false;
