@@ -2,63 +2,50 @@
 
 import { getStore } from '@netlify/blobs';
 
-const GF_API = 'https://excursionistas.api.global.fan/graphql';
+const GF_BASE = 'https://excursionistas.api.global.fan';
+const GF_API  = `${GF_BASE}/graphql`;
 const TOKEN_CACHE_KEY = 'gf_token';
 const TOKEN_TTL_MS = 55 * 60 * 1000;
 
-async function gql(query, variables = {}, token = null) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(GF_API, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ query, variables }),
-  });
-  const text = await res.text();
-  try { return JSON.parse(text); }
-  catch(e) { return { errors: [{ message: 'Respuesta no-JSON: ' + text.slice(0, 200) }] }; }
-}
-
 async function login() {
-  const login = process.env.GLOBALFAN_EMAIL;
+  const email    = process.env.GLOBALFAN_EMAIL;
   const password = process.env.GLOBALFAN_PASSWORD;
-  if (!login || !password) throw new Error('Faltan variables GLOBALFAN_EMAIL o GLOBALFAN_PASSWORD en Netlify.');
+  if (!email || !password) throw new Error('Faltan GLOBALFAN_EMAIL o GLOBALFAN_PASSWORD en Netlify.');
 
-  const data = await gql(
-    `mutation userLogin($login: String!, $password: String!) {
-      userLogin(login: $login, password: $password) {
-        credentials { accessToken tokenType uid client }
-        authenticatable { id roleId role { internalName } }
-      }
-    }`,
-    { login, password }
-  );
+  const res = await fetch(`${GF_BASE}/auth/sign_in`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
 
-  const creds = data?.data?.userLogin?.credentials;
-  if (creds?.accessToken) return { token: creds.accessToken, uid: creds.uid, client: creds.client, tokenType: creds.tokenType };
+  const accessToken = res.headers.get('access-token');
+  const client      = res.headers.get('client');
+  const uid         = res.headers.get('uid');
+  const tokenType   = res.headers.get('token-type') || 'Bearer';
 
-  if (data?.errors) throw new Error('Login falló: ' + JSON.stringify(data.errors).slice(0, 300));
-  throw new Error('Login no devolvió token: ' + JSON.stringify(data).slice(0, 300));
+  if (accessToken) return { accessToken, client, uid, tokenType };
+
+  const body = await res.json().catch(() => ({}));
+  throw new Error(`Login REST falló (${res.status}): ${JSON.stringify(body).slice(0, 300)}`);
 }
 
 async function getToken(store) {
   try {
     const cached = await store.get(TOKEN_CACHE_KEY, { type: 'json' });
-    if (cached?.token && (Date.now() - cached.createdAt) < TOKEN_TTL_MS) return cached;
+    if (cached?.accessToken && (Date.now() - cached.createdAt) < TOKEN_TTL_MS) return cached;
   } catch (e) {}
   const creds = await login();
-  const entry = { ...creds, createdAt: Date.now() };
-  await store.setJSON(TOKEN_CACHE_KEY, entry);
-  return entry;
+  await store.setJSON(TOKEN_CACHE_KEY, { ...creds, createdAt: Date.now() });
+  return creds;
 }
 
 function authHeaders(creds) {
   return {
     'Content-Type': 'application/json',
-    'access-token': creds.token,
-    'token-type': creds.tokenType || 'Bearer',
-    'uid': creds.uid || process.env.GLOBALFAN_EMAIL,
-    'client': creds.client || '',
+    'access-token': creds.accessToken,
+    'token-type':   creds.tokenType || 'Bearer',
+    'uid':          creds.uid,
+    'client':       creds.client,
   };
 }
 
@@ -68,13 +55,20 @@ const FANS_QUERY = `
       totalCount
       nodes {
         id fileNumber firstName lastName email phoneNumber documentNumber
-        isMembershipActive isActive membershipName membershipId
+        isMembershipActive isActive membershipName suspensionReason
+        membershipCreatedAt bornAt gender points
         membership { id name price }
-        suspensionReason createdAt membershipCreatedAt bornAt gender bloodType points
       }
     }
   }
 `;
+
+function calcEstado(s) {
+  if (!s.isActive) return 'Baja';
+  if (s.suspensionReason) return 'Suspendido';
+  if (s.isMembershipActive) return 'Al día';
+  return 'Moroso';
+}
 
 async function fetchAllSocios(creds) {
   const allSocios = [];
@@ -88,26 +82,26 @@ async function fetchAllSocios(creds) {
       body: JSON.stringify({ query: FANS_QUERY, variables: { page, per } }),
     });
     const data = await res.json();
-    if (data.errors) throw new Error('Error al traer socios: ' + JSON.stringify(data.errors).slice(0, 300));
+    if (data.errors) throw new Error('Error socios: ' + JSON.stringify(data.errors).slice(0, 300));
     const result = data?.data?.fans;
-    if (!result) throw new Error('Estructura inesperada: ' + JSON.stringify(data).slice(0, 300));
+    if (!result) throw new Error('Sin datos: ' + JSON.stringify(data).slice(0, 300));
     const items = result.nodes || [];
     if (!items.length) break;
     for (const s of items) {
       allSocios.push({
-        numero: s.fileNumber || s.id || '',
-        nombre: s.firstName || '',
-        apellido: s.lastName || '',
-        email: s.email || '',
-        telefono: s.phoneNumber || '',
-        dni: s.documentNumber || '',
-        categoria: s.membershipName || s.membership?.name || '—',
-        estado: calcEstado(s),
-        ultimaCuota: s.membershipCreatedAt ? s.membershipCreatedAt.slice(0, 10) : '',
-        vencimiento: '',
-        activo: s.isActive,
+        numero:          s.fileNumber || s.id || '',
+        nombre:          s.firstName || '',
+        apellido:        s.lastName || '',
+        email:           s.email || '',
+        telefono:        s.phoneNumber || '',
+        dni:             s.documentNumber || '',
+        categoria:       s.membershipName || s.membership?.name || '—',
+        estado:          calcEstado(s),
+        ultimaCuota:     s.membershipCreatedAt ? s.membershipCreatedAt.slice(0, 10) : '',
+        vencimiento:     '',
+        activo:          s.isActive,
         membresiaActiva: s.isMembershipActive,
-        puntos: s.points || 0,
+        puntos:          s.points || 0,
       });
     }
     const total = result.totalCount || 0;
@@ -118,17 +112,10 @@ async function fetchAllSocios(creds) {
   return allSocios;
 }
 
-function calcEstado(s) {
-  if (!s.isActive) return 'Baja';
-  if (s.suspensionReason) return 'Suspendido';
-  if (s.isMembershipActive) return 'Al día';
-  return 'Moroso';
-}
-
 export default async (request) => {
   const store = getStore('globalfan-data');
   try {
-    const creds = await getToken(store);
+    const creds  = await getToken(store);
     const socios = await fetchAllSocios(creds);
     const syncedAt = new Date().toISOString();
     await store.setJSON('last-sync', { socios, syncedAt, total: socios.length });
