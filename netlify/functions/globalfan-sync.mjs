@@ -64,7 +64,6 @@ function authHeaders(creds) {
 const FANS_QUERY = `
   query fans {
     fans {
-      totalCount
       nodes {
         id fileNumber firstName lastName email phoneNumber documentNumber
         isMembershipActive isActive membershipName suspensionReason
@@ -89,10 +88,9 @@ async function fetchAllSocios(creds) {
     body: JSON.stringify({ query: FANS_QUERY }),
   });
   const data = await res.json();
-  if (data.errors) throw new Error('Error socios: ' + JSON.stringify(data.errors).slice(0, 300));
-  const result = data?.data?.fans;
-  if (!result) throw new Error('Sin datos: ' + JSON.stringify(data).slice(0, 300));
-  const items = result.nodes || [];
+  if (data.errors) throw new Error('Error socios: ' + JSON.stringify(data.errors).slice(0, 400));
+  const items = data?.data?.fans?.nodes || [];
+  if (!items.length) throw new Error('Sin socios: ' + JSON.stringify(data).slice(0, 300));
   return items.map(s => ({
     numero:          s.fileNumber || s.id || '',
     nombre:          s.firstName || '',
