@@ -62,8 +62,8 @@ function authHeaders(creds) {
 }
 
 const FANS_QUERY = `
-  query fans($page: Int, $per: Int) {
-    fans(page: $page, per: $per) {
+  query fans {
+    fans {
       totalCount
       nodes {
         id fileNumber firstName lastName email phoneNumber documentNumber
@@ -83,45 +83,31 @@ function calcEstado(s) {
 }
 
 async function fetchAllSocios(creds) {
-  const allSocios = [];
-  let page = 1;
-  const per = 200;
-
-  while (true) {
-    const res = await fetch(GF_API, {
-      method: 'POST',
-      headers: authHeaders(creds),
-      body: JSON.stringify({ query: FANS_QUERY, variables: { page, per } }),
-    });
-    const data = await res.json();
-    if (data.errors) throw new Error('Error socios: ' + JSON.stringify(data.errors).slice(0, 300));
-    const result = data?.data?.fans;
-    if (!result) throw new Error('Sin datos: ' + JSON.stringify(data).slice(0, 300));
-    const items = result.nodes || [];
-    if (!items.length) break;
-    for (const s of items) {
-      allSocios.push({
-        numero:          s.fileNumber || s.id || '',
-        nombre:          s.firstName || '',
-        apellido:        s.lastName || '',
-        email:           s.email || '',
-        telefono:        s.phoneNumber || '',
-        dni:             s.documentNumber || '',
-        categoria:       s.membershipName || s.membership?.name || '—',
-        estado:          calcEstado(s),
-        ultimaCuota:     s.membershipCreatedAt ? s.membershipCreatedAt.slice(0, 10) : '',
-        vencimiento:     '',
-        activo:          s.isActive,
-        membresiaActiva: s.isMembershipActive,
-        puntos:          s.points || 0,
-      });
-    }
-    const total = result.totalCount || 0;
-    if (allSocios.length >= total || items.length < per) break;
-    page++;
-    if (page > 20) break;
-  }
-  return allSocios;
+  const res = await fetch(GF_API, {
+    method: 'POST',
+    headers: authHeaders(creds),
+    body: JSON.stringify({ query: FANS_QUERY }),
+  });
+  const data = await res.json();
+  if (data.errors) throw new Error('Error socios: ' + JSON.stringify(data.errors).slice(0, 300));
+  const result = data?.data?.fans;
+  if (!result) throw new Error('Sin datos: ' + JSON.stringify(data).slice(0, 300));
+  const items = result.nodes || [];
+  return items.map(s => ({
+    numero:          s.fileNumber || s.id || '',
+    nombre:          s.firstName || '',
+    apellido:        s.lastName || '',
+    email:           s.email || '',
+    telefono:        s.phoneNumber || '',
+    dni:             s.documentNumber || '',
+    categoria:       s.membershipName || s.membership?.name || '—',
+    estado:          calcEstado(s),
+    ultimaCuota:     s.membershipCreatedAt ? s.membershipCreatedAt.slice(0, 10) : '',
+    vencimiento:     '',
+    activo:          s.isActive,
+    membresiaActiva: s.isMembershipActive,
+    puntos:          s.points || 0,
+  }));
 }
 
 export default async (request) => {
