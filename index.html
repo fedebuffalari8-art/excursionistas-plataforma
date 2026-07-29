@@ -2013,17 +2013,17 @@
   let sociosFiltroCategoria = 'todas';
 
   async function initSocios(){
-    // Primero mostramos lo que haya guardado localmente (respuesta inmediata)
+    // Primero mostramos lo que haya guardado en localStorage (respuesta inmediata)
     try{
-      const res = await window.storage.get(SOCIOS_KEY, true);
-      if(res && res.value){
-        const cached = JSON.parse(res.value);
-        sociosData = cached.socios || cached;
-        renderSociosPanel(cached.syncedAt || null);
+      const cached = localStorage.getItem(SOCIOS_KEY);
+      if(cached){
+        const parsed = JSON.parse(cached);
+        sociosData = parsed.socios || parsed;
+        renderSociosPanel(parsed.syncedAt || null);
       }
     }catch(e){ sociosData = []; }
 
-    // Luego intentamos sincronizar con Global Fan en segundo plano
+    // Luego sincronizamos con Global Fan en segundo plano
     sincronizarGlobalFan(false);
   }
 
@@ -2037,17 +2037,17 @@
       if(!data.ok) throw new Error(data.error || 'Error desconocido');
 
       sociosData = data.socios || [];
-      // Guardamos localmente para la próxima apertura
-      await window.storage.set(SOCIOS_KEY, JSON.stringify({ socios: sociosData, syncedAt: data.syncedAt }), true);
+
+      // Intentamos guardar en localStorage como caché (falla silenciosamente si no hay)
+      try{ localStorage.setItem(SOCIOS_KEY, JSON.stringify({ socios: sociosData, syncedAt: data.syncedAt })); }catch(e){}
+
       renderSociosPanel(data.syncedAt);
       if(mostrarToast) showToast(`✓ ${sociosData.length.toLocaleString('es-AR')} socios sincronizados desde Global Fan.`);
     }catch(e){
-      // Si falla la sync, mostramos los datos cacheados con un aviso
       if(sociosData.length > 0){
         if(statusEl) statusEl.innerHTML = `⚠️ No se pudo sincronizar ahora — mostrando datos guardados. <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Reintentar</button>`;
       } else {
-        // Sin datos cacheados y sin conexión: fallback al CSV manual
-        if(statusEl) statusEl.innerHTML = `Sin conexión con Global Fan — podés subir el CSV manualmente mientras tanto. <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Reintentar</button>`;
+        if(statusEl) statusEl.innerHTML = `Sin conexión con Global Fan. <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Reintentar</button>`;
         document.getElementById('socios-upload-manual').style.display = 'flex';
       }
     }
@@ -2056,7 +2056,7 @@
   async function limpiarSocios(){
     if(!confirm('¿Borrar los datos de socios guardados localmente?')) return;
     sociosData = [];
-    await window.storage.delete(SOCIOS_KEY, true).catch(()=>{});
+    try{ localStorage.removeItem(SOCIOS_KEY); }catch(e){}
     renderSociosPanel(null);
     showToast('Caché de socios eliminado.');
   }
