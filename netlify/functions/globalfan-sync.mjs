@@ -15,165 +15,124 @@ async function gql(query, variables = {}, token = null) {
     body: JSON.stringify({ query, variables }),
   });
   const text = await res.text();
-  try { return { ok: true, data: JSON.parse(text) }; }
-  catch(e) { return { ok: false, raw: text.slice(0, 500) }; }
+  try { return JSON.parse(text); }
+  catch(e) { return { errors: [{ message: 'Respuesta no-JSON: ' + text.slice(0, 200) }] }; }
 }
 
 async function login() {
-  const email = process.env.GLOBALFAN_EMAIL;
+  const login = process.env.GLOBALFAN_EMAIL;
   const password = process.env.GLOBALFAN_PASSWORD;
-  if (!email || !password) throw new Error('Faltan variables GLOBALFAN_EMAIL o GLOBALFAN_PASSWORD en Netlify.');
+  if (!login || !password) throw new Error('Faltan variables GLOBALFAN_EMAIL o GLOBALFAN_PASSWORD en Netlify.');
 
-  const intro = await gql(`{
-    __schema {
-      mutationType {
-        fields {
-          name
-          args { name type { name kind ofType { name kind } } }
-        }
+  const data = await gql(
+    `mutation userLogin($login: String!, $password: String!) {
+      userLogin(login: $login, password: $password) {
+        credentials { accessToken tokenType uid client }
+        authenticatable { id roleId role { internalName } }
       }
-    }
-  }`);
+    }`,
+    { login, password }
+  );
 
-  if (intro.ok && intro.data?.data?.__schema?.mutationType?.fields) {
-    const mutations = intro.data.data.__schema.mutationType.fields;
-    const loginMutation = mutations.find(m =>
-      m.name.toLowerCase().includes('login') ||
-      m.name.toLowerCase().includes('signin') ||
-      m.name.toLowerCase().includes('auth')
-    );
+  const creds = data?.data?.userLogin?.credentials;
+  if (creds?.accessToken) return { token: creds.accessToken, uid: creds.uid, client: creds.client, tokenType: creds.tokenType };
 
-    if (loginMutation) {
-      const args = loginMutation.args || [];
-      const emailArg = args.find(a => a.name.toLowerCase().includes('email') || a.name.toLowerCase().includes('mail') || a.name.toLowerCase().includes('user'));
-      const passArg = args.find(a => a.name.toLowerCase().includes('pass') || a.name.toLowerCase().includes('password') || a.name.toLowerCase().includes('pwd'));
-
-      if (emailArg && passArg) {
-        const query = `mutation { ${loginMutation.name}(${emailArg.name}: "${email}", ${passArg.name}: "${password}") { token accessToken jwt } }`;
-        const result = await gql(query);
-        if (result.ok) {
-          const d = result.data?.data?.[loginMutation.name];
-          const token = d?.token || d?.accessToken || d?.jwt;
-          if (token) return token;
-        }
-        throw new Error(`Mutación ${loginMutation.name} falló: ${JSON.stringify(result).slice(0, 300)}`);
-      }
-    }
-    throw new Error('Mutaciones disponibles: ' + mutations.map(m => m.name).join(', '));
-  }
-
-  const attempts = [];
-  const queries = [
-    { name: 'signIn',       q: `mutation { signIn(email: "${email}", password: "${password}") { token accessToken } }` },
-    { name: 'login',        q: `mutation { login(email: "${email}", password: "${password}") { token accessToken } }` },
-    { name: 'adminLogin',   q: `mutation { adminLogin(email: "${email}", password: "${password}") { token accessToken } }` },
-    { name: 'loginAdmin',   q: `mutation { loginAdmin(email: "${email}", password: "${password}") { token accessToken } }` },
-    { name: 'authenticate', q: `mutation { authenticate(email: "${email}", password: "${password}") { token accessToken } }` },
-  ];
-
-  for (const q of queries) {
-    const r = await gql(q.q);
-    const d = r.data?.data?.[q.name];
-    const token = d?.token || d?.accessToken;
-    if (token) return token;
-    attempts.push({ name: q.name, result: JSON.stringify(r).slice(0, 150) });
-  }
-
-  throw new Error('Todos los intentos fallaron: ' + JSON.stringify(attempts));
+  if (data?.errors) throw new Error('Login falló: ' + JSON.stringify(data.errors).slice(0, 300));
+  throw new Error('Login no devolvió token: ' + JSON.stringify(data).slice(0, 300));
 }
 
 async function getToken(store) {
   try {
     const cached = await store.get(TOKEN_CACHE_KEY, { type: 'json' });
-    if (cached?.token && (Date.now() - cached.createdAt) < TOKEN_TTL_MS) return cached.token;
+    if (cached?.token && (Date.now() - cached.createdAt) < TOKEN_TTL_MS) return cached;
   } catch (e) {}
-  const token = await login();
-  await store.setJSON(TOKEN_CACHE_KEY, { token, createdAt: Date.now() });
-  return token;
+  const creds = await login();
+  const entry = { ...creds, createdAt: Date.now() };
+  await store.setJSON(TOKEN_CACHE_KEY, entry);
+  return entry;
 }
 
-const SOCIOS_QUERY = `
-  query GetFans($page: Int, $perPage: Int) {
-    fans(page: $page, perPage: $perPage) {
-      total
-      data {
-        id fanNumber firstName lastName email phone dni status
-        membershipType { name }
-        lastPayment { date amount }
-        nextDueDate
-        category { name }
-      }
-    }
-  }
-`;
+function authHeaders(creds) {
+  return {
+    'Content-Type': 'application/json',
+    'access-token': creds.token,
+    'token-type': creds.tokenType || 'Bearer',
+    'uid': creds.uid || process.env.GLOBALFAN_EMAIL,
+    'client': creds.client || '',
+  };
+}
 
-const SOCIOS_QUERY_ALT = `
-  query GetMembers($page: Int, $limit: Int) {
-    members(page: $page, limit: $limit) {
+const FANS_QUERY = `
+  query fans($page: Int, $per: Int) {
+    fans(page: $page, per: $per) {
       totalCount
       nodes {
-        id memberNumber name surname email phone document status
-        plan { name }
-        lastPaymentDate expirationDate
+        id fileNumber firstName lastName email phoneNumber documentNumber
+        isMembershipActive isActive membershipName membershipId
+        membership { id name price }
+        suspensionReason createdAt membershipCreatedAt bornAt gender bloodType points
       }
     }
   }
 `;
 
-async function fetchAllSocios(token) {
+async function fetchAllSocios(creds) {
   const allSocios = [];
   let page = 1;
-  const perPage = 200;
+  const per = 200;
 
   while (true) {
-    let r = await gql(SOCIOS_QUERY, { page, perPage }, token);
-    if (!r.ok || r.data?.errors || !r.data?.data?.fans) {
-      r = await gql(SOCIOS_QUERY_ALT, { page, limit: perPage }, token);
-    }
-    const result = r.data?.data?.fans || r.data?.data?.members;
-    if (!result) throw new Error('No se pudieron obtener socios: ' + JSON.stringify(r).slice(0,300));
-    const items = result.data || result.nodes || [];
+    const res = await fetch(GF_API, {
+      method: 'POST',
+      headers: authHeaders(creds),
+      body: JSON.stringify({ query: FANS_QUERY, variables: { page, per } }),
+    });
+    const data = await res.json();
+    if (data.errors) throw new Error('Error al traer socios: ' + JSON.stringify(data.errors).slice(0, 300));
+    const result = data?.data?.fans;
+    if (!result) throw new Error('Estructura inesperada: ' + JSON.stringify(data).slice(0, 300));
+    const items = result.nodes || [];
     if (!items.length) break;
     for (const s of items) {
       allSocios.push({
-        numero: s.fanNumber || s.memberNumber || s.id || '',
-        nombre: s.firstName || s.name || '',
-        apellido: s.lastName || s.surname || '',
+        numero: s.fileNumber || s.id || '',
+        nombre: s.firstName || '',
+        apellido: s.lastName || '',
         email: s.email || '',
-        telefono: s.phone || '',
-        dni: s.dni || s.document || '',
-        categoria: s.membershipType?.name || s.plan?.name || s.category?.name || '—',
-        estado: normalizeEstado(s.status),
-        ultimaCuota: s.lastPayment?.date || s.lastPaymentDate || '',
-        montoCuota: s.lastPayment?.amount || null,
-        vencimiento: s.nextDueDate || s.expirationDate || '',
+        telefono: s.phoneNumber || '',
+        dni: s.documentNumber || '',
+        categoria: s.membershipName || s.membership?.name || '—',
+        estado: calcEstado(s),
+        ultimaCuota: s.membershipCreatedAt ? s.membershipCreatedAt.slice(0, 10) : '',
+        vencimiento: '',
+        activo: s.isActive,
+        membresiaActiva: s.isMembershipActive,
+        puntos: s.points || 0,
       });
     }
-    const total = result.total || result.totalCount || 0;
-    if (allSocios.length >= total || items.length < perPage) break;
+    const total = result.totalCount || 0;
+    if (allSocios.length >= total || items.length < per) break;
     page++;
     if (page > 20) break;
   }
   return allSocios;
 }
 
-function normalizeEstado(raw) {
-  if (!raw) return 'Sin datos';
-  const v = raw.toLowerCase();
-  if (['active','activo','al_dia','al día','paid','vigente'].some(x => v.includes(x))) return 'Al día';
-  if (['moroso','deudor','overdue','vencido','expired'].some(x => v.includes(x))) return 'Moroso';
-  if (['suspended','suspendido','inactive','inactivo','baja'].some(x => v.includes(x))) return 'Baja';
-  if (['por_vencer','por vencer','upcoming','pending'].some(x => v.includes(x))) return 'Por vencer';
-  return raw;
+function calcEstado(s) {
+  if (!s.isActive) return 'Baja';
+  if (s.suspensionReason) return 'Suspendido';
+  if (s.isMembershipActive) return 'Al día';
+  return 'Moroso';
 }
 
 export default async (request) => {
   const store = getStore('globalfan-data');
   try {
-    const token = await getToken(store);
-    const socios = await fetchAllSocios(token);
-    await store.setJSON('last-sync', { socios, syncedAt: new Date().toISOString(), total: socios.length });
-    return Response.json({ ok: true, socios, syncedAt: new Date().toISOString(), total: socios.length });
+    const creds = await getToken(store);
+    const socios = await fetchAllSocios(creds);
+    const syncedAt = new Date().toISOString();
+    await store.setJSON('last-sync', { socios, syncedAt, total: socios.length });
+    return Response.json({ ok: true, socios, syncedAt, total: socios.length });
   } catch (e) {
     await store.delete(TOKEN_CACHE_KEY).catch(() => {});
     return Response.json({ ok: false, error: e.message }, { status: 500 });
