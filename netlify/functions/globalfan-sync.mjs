@@ -1,4 +1,7 @@
 // netlify/functions/globalfan-sync.mjs
+// Global Fan usa Devise Token Auth:
+// - Login: POST /auth (REST, no GraphQL)
+// - Datos: POST /graphql con headers de autenticación
 
 import { getStore } from '@netlify/blobs';
 
@@ -12,7 +15,7 @@ async function login() {
   const password = process.env.GLOBALFAN_PASSWORD;
   if (!email || !password) throw new Error('Faltan GLOBALFAN_EMAIL o GLOBALFAN_PASSWORD en Netlify.');
 
-  const res = await fetch(`${GF_BASE}/auth/sign_in`, {
+  const res = await fetch(`${GF_BASE}/auth`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
@@ -23,9 +26,15 @@ async function login() {
   const uid         = res.headers.get('uid');
   const tokenType   = res.headers.get('token-type') || 'Bearer';
 
-  if (accessToken) return { accessToken, client, uid, tokenType };
+  if (accessToken) {
+    return { accessToken, client, uid, tokenType };
+  }
 
   const body = await res.json().catch(() => ({}));
+  if (body?.data?.accessToken || body?.token) {
+    return { accessToken: body.data?.accessToken || body.token, client: body.data?.client || '', uid: body.data?.uid || email, tokenType: 'Bearer' };
+  }
+
   throw new Error(`Login REST falló (${res.status}): ${JSON.stringify(body).slice(0, 300)}`);
 }
 
