@@ -790,22 +790,70 @@
 
     <!-- SOCIOS -->
     <section class="panel" id="panel-socios">
-      <div class="integration-note">
-        <span class="ic">🔗</span>
-        <div>Tabla de ejemplo — en producción, estos datos vienen <b>en vivo desde Access Fan</b> vía sincronización automática.</div>
+
+      <!-- KPIs -->
+      <div class="grid grid-4" id="socios-kpis" style="margin-bottom:18px;">
+        <div class="card kpi hoverable"><h3>Total socios</h3><div class="num" id="sk-total">—</div><div class="delta" style="color:var(--text-faint);">cargados en el sistema</div></div>
+        <div class="card kpi hoverable"><h3>Al día</h3><div class="num" id="sk-aldía" style="color:var(--bg-deep);">—</div><div class="delta up" id="sk-aldía-pct"></div></div>
+        <div class="card kpi hoverable"><h3>Morosos</h3><div class="num" id="sk-morosos" style="color:var(--red);">—</div><div class="delta down" id="sk-morosos-pct"></div></div>
+        <div class="card kpi hoverable"><h3>Sin datos de pago</h3><div class="num" id="sk-sindatos" style="color:var(--amber);">—</div><div class="delta" style="color:var(--text-faint);"></div></div>
       </div>
-      <div class="table-scroll"><table>
-        <thead><tr><th>Socio</th><th>Categoría</th><th>Estado</th><th>Última cuota</th><th>Vencimiento</th></tr></thead>
-        <tbody>
-          <tr><td>Martínez, Juan</td><td>Mayor</td><td><span class="badge green">Al día</span></td><td class="mono">Mayo 2026</td><td class="mono">05/07/26</td></tr>
-          <tr><td>Gómez, Lucía</td><td>Mayor</td><td><span class="badge red">Vencido</span></td><td class="mono">Marzo 2026</td><td class="mono">05/04/26</td></tr>
-          <tr><td>Fernández, Pedro</td><td>Vitalicio</td><td><span class="badge green">Al día</span></td><td class="mono">Junio 2026</td><td class="mono">05/08/26</td></tr>
-          <tr><td>Suárez, Camila</td><td>Menor</td><td><span class="badge amber">Por vencer</span></td><td class="mono">Mayo 2026</td><td class="mono">28/06/26</td></tr>
-          <tr><td>Díaz, Roberto</td><td>Mayor</td><td><span class="badge red">Vencido</span></td><td class="mono">Febrero 2026</td><td class="mono">05/03/26</td></tr>
-          <tr><td>Romero, Valentina</td><td>Mayor</td><td><span class="badge green">Al día</span></td><td class="mono">Junio 2026</td><td class="mono">05/08/26</td></tr>
-          <tr><td>Acosta, Tomás</td><td>Menor</td><td><span class="badge green">Al día</span></td><td class="mono">Junio 2026</td><td class="mono">05/08/26</td></tr>
-        </tbody>
-      </table></div>
+
+      <!-- Carga de datos -->
+      <div class="card hoverable" id="socios-upload-card" style="margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h3 style="margin-bottom:4px;">📂 Datos de Global Fan</h3>
+            <div style="font-size:12.5px; color:var(--text-faint); line-height:1.5;" id="socios-upload-status">
+              Sin datos cargados — exportá el listado de socios desde Global Fan (Socios → Exportar Socios) y subilo acá.
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button class="btn gold" onclick="sincronizarGlobalFan(true)">🔄 Sincronizar ahora</button>
+            <button class="btn ghost" onclick="limpiarSocios()" id="socios-clear-btn" style="display:none;">🗑 Limpiar caché</button>
+          </div>
+        </div>
+        <div id="socios-upload-manual" style="display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--border); align-items:center; gap:12px;">
+          <span style="font-size:12.5px; color:var(--text-soft);">O subí el CSV manualmente:</span>
+          <label class="btn ghost" style="cursor:pointer; margin:0;">
+            📥 Subir CSV
+            <input type="file" id="socios-csv-input" accept=".csv,.xlsx,.xls" style="display:none;" onchange="importarSociosCSV(event)">
+          </label>
+        </div>
+      </div>
+
+      <!-- Buscador y filtros -->
+      <div class="card hoverable" id="socios-table-card" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; margin-bottom:16px;">
+          <h3 style="margin-bottom:0;">Padrón de socios</h3>
+          <input type="text" id="socios-search" class="form-input" placeholder="Buscar por nombre, apellido o número…" style="width:260px;" oninput="renderSocios()">
+        </div>
+        <div class="filter-row" id="socios-estado-filters" style="margin-bottom:16px;">
+          <button class="chip active" data-est="todos">Todos</button>
+          <button class="chip" data-est="Al día">Al día</button>
+          <button class="chip" data-est="Moroso">Moroso</button>
+          <button class="chip" data-est="Sin datos">Sin datos</button>
+        </div>
+        <div class="filter-row" id="socios-cat-filters" style="margin-bottom:16px;"></div>
+        <div class="table-scroll">
+          <table id="socios-table">
+            <thead>
+              <tr>
+                <th>N° Socio</th>
+                <th>Apellido y nombre</th>
+                <th>Categoría</th>
+                <th>Estado</th>
+                <th>Última cuota</th>
+                <th>Vencimiento</th>
+                <th>Email</th>
+              </tr>
+            </thead>
+            <tbody id="socios-body"></tbody>
+          </table>
+        </div>
+        <div style="font-size:11.5px; color:var(--text-faint); margin-top:12px;" id="socios-count-label"></div>
+      </div>
+
     </section>
 
     <!-- FINANZAS -->
@@ -1301,6 +1349,7 @@
     renderPlantel('az');
     loadInstagramData();
     loadXData();
+    initSocios();
   }
 
   function startHeartbeat(username){
@@ -1955,6 +2004,209 @@
         <a class="permalink" href="${urlBase}${p.id}" target="_blank" title="Ver en X">↗</a>
       </div>`).join('');
   }
+
+  /* ============ MÓDULO SOCIOS ============ */
+
+  const SOCIOS_KEY = 'socios_data';
+  let sociosData = [];
+  let sociosFiltroEstado = 'todos';
+  let sociosFiltroCategoria = 'todas';
+
+  async function initSocios(){
+    // Primero mostramos lo que haya guardado localmente (respuesta inmediata)
+    try{
+      const res = await window.storage.get(SOCIOS_KEY, true);
+      if(res && res.value){
+        const cached = JSON.parse(res.value);
+        sociosData = cached.socios || cached;
+        renderSociosPanel(cached.syncedAt || null);
+      }
+    }catch(e){ sociosData = []; }
+
+    // Luego intentamos sincronizar con Global Fan en segundo plano
+    sincronizarGlobalFan(false);
+  }
+
+  async function sincronizarGlobalFan(mostrarToast = true){
+    const statusEl = document.getElementById('socios-upload-status');
+    if(statusEl) statusEl.innerHTML = '🔄 Sincronizando con Global Fan…';
+    try{
+      const res = await fetch('/.netlify/functions/globalfan-sync');
+      const data = await res.json();
+
+      if(!data.ok) throw new Error(data.error || 'Error desconocido');
+
+      sociosData = data.socios || [];
+      // Guardamos localmente para la próxima apertura
+      await window.storage.set(SOCIOS_KEY, JSON.stringify({ socios: sociosData, syncedAt: data.syncedAt }), true);
+      renderSociosPanel(data.syncedAt);
+      if(mostrarToast) showToast(`✓ ${sociosData.length.toLocaleString('es-AR')} socios sincronizados desde Global Fan.`);
+    }catch(e){
+      // Si falla la sync, mostramos los datos cacheados con un aviso
+      if(sociosData.length > 0){
+        if(statusEl) statusEl.innerHTML = `⚠️ No se pudo sincronizar ahora — mostrando datos guardados. <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Reintentar</button>`;
+      } else {
+        // Sin datos cacheados y sin conexión: fallback al CSV manual
+        if(statusEl) statusEl.innerHTML = `Sin conexión con Global Fan — podés subir el CSV manualmente mientras tanto. <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Reintentar</button>`;
+        document.getElementById('socios-upload-manual').style.display = 'flex';
+      }
+    }
+  }
+
+  async function limpiarSocios(){
+    if(!confirm('¿Borrar los datos de socios guardados localmente?')) return;
+    sociosData = [];
+    await window.storage.delete(SOCIOS_KEY, true).catch(()=>{});
+    renderSociosPanel(null);
+    showToast('Caché de socios eliminado.');
+  }
+
+  // Parser CSV de respaldo (si la función de Netlify no está disponible)
+  function detectCol(headers, candidates){
+    for(const c of candidates){
+      const idx = headers.findIndex(h => h.toLowerCase().replace(/[^a-z0-9]/g,'').includes(c.toLowerCase().replace(/[^a-z0-9]/g,'')));
+      if(idx >= 0) return idx;
+    }
+    return -1;
+  }
+
+  function parseCSVLine(line){
+    const result = []; let inQuote = false, cur = '';
+    for(let i = 0; i < line.length; i++){
+      const ch = line[i];
+      if(ch === '"'){ inQuote = !inQuote; }
+      else if(ch === ',' && !inQuote){ result.push(cur.trim()); cur = ''; }
+      else { cur += ch; }
+    }
+    result.push(cur.trim());
+    return result;
+  }
+
+  function calcEstadoSocio(row){
+    const estadoVal = (row.estado || row.situacion || row.status || '').toLowerCase();
+    if(estadoVal.includes('al día')||estadoVal.includes('al dia')||estadoVal.includes('activo')||estadoVal.includes('vigente')) return 'Al día';
+    if(estadoVal.includes('moroso')||estadoVal.includes('deudor')||estadoVal.includes('vencido')) return 'Moroso';
+    if(estadoVal.includes('suspendido')||estadoVal.includes('baja')||estadoVal.includes('inactivo')) return 'Baja';
+    if(row.vencimiento){
+      try{
+        const venc = new Date(row.vencimiento); const hoy = new Date();
+        if(venc < hoy) return 'Moroso';
+        if((venc - hoy) < 30*24*60*60*1000) return 'Por vencer';
+        return 'Al día';
+      }catch(e){}
+    }
+    return 'Sin datos';
+  }
+
+  async function importarSociosCSV(event){
+    const file = event.target.files[0]; if(!file) return;
+    event.target.value = '';
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if(lines.length < 2){ showToast('El archivo no tiene datos válidos.'); return; }
+    const sep = lines[0].includes(';') ? ';' : ',';
+    const headers = lines[0].split(sep).map(h => h.replace(/"/g,'').trim().toLowerCase());
+    const iNum = detectCol(headers, ['numero','número','nro socio','numsocio','id socio','fan_id','código']);
+    const iNom = detectCol(headers, ['nombre','name','firstname','primer nombre']);
+    const iApe = detectCol(headers, ['apellido','apellidos','lastname','surname']);
+    const iCat = detectCol(headers, ['categoría','categoria','category','tipo','membresia','membresía','plan']);
+    const iEst = detectCol(headers, ['estado','situacion','situación','status','condicion']);
+    const iEmail = detectCol(headers, ['email','correo','mail']);
+    const iTel = detectCol(headers, ['telefono','teléfono','celular','phone']);
+    const iDni = detectCol(headers, ['dni','documento','doc']);
+    const iVenc = detectCol(headers, ['vencimiento','vence','expiracion','expiración']);
+    const iUltima = detectCol(headers, ['ultima cuota','última cuota','ultimo pago','fecha pago']);
+    const parsedRows = [];
+    for(let i = 1; i < lines.length; i++){
+      const cols = sep === ',' ? parseCSVLine(lines[i]) : lines[i].split(';').map(c => c.replace(/"/g,'').trim());
+      if(cols.every(c => !c)) continue;
+      const get = idx => idx >= 0 && idx < cols.length ? cols[idx].replace(/"/g,'').trim() : '';
+      const nombre = get(iNom), apellido = get(iApe);
+      if(!nombre && !apellido && !get(iNum)) continue;
+      const row = { numero: get(iNum)||String(i), nombre, apellido, categoria: get(iCat)||'—', email: get(iEmail), telefono: get(iTel), dni: get(iDni), vencimiento: get(iVenc), ultimaCuota: get(iUltima), estadoRaw: get(iEst) };
+      row.estado = calcEstadoSocio({ estado: row.estadoRaw, vencimiento: row.vencimiento });
+      parsedRows.push(row);
+    }
+    if(!parsedRows.length){ showToast('No se pudieron leer socios. Revisá el formato del archivo.'); return; }
+    sociosData = parsedRows;
+    const syncedAt = new Date().toISOString();
+    await window.storage.set(SOCIOS_KEY, JSON.stringify({ socios: sociosData, syncedAt }), true);
+    renderSociosPanel(syncedAt);
+    showToast(`✓ ${parsedRows.length.toLocaleString('es-AR')} socios cargados desde CSV.`);
+  }
+
+  function renderSociosPanel(syncedAt){
+    const tieneData = sociosData.length > 0;
+    document.getElementById('socios-table-card').style.display = tieneData ? 'block' : 'none';
+    document.getElementById('socios-clear-btn').style.display = tieneData ? 'inline-flex' : 'none';
+    if(!tieneData){
+      ['sk-total','sk-aldía','sk-morosos','sk-sindatos'].forEach(id => document.getElementById(id).textContent = '—');
+      document.getElementById('sk-aldía-pct').textContent = '';
+      document.getElementById('sk-morosos-pct').textContent = '';
+      return;
+    }
+    const total = sociosData.length;
+    const alDia = sociosData.filter(s => s.estado === 'Al día').length;
+    const morosos = sociosData.filter(s => s.estado === 'Moroso').length;
+    const sinDatos = sociosData.filter(s => !['Al día','Moroso'].includes(s.estado)).length;
+    document.getElementById('sk-total').textContent = total.toLocaleString('es-AR');
+    document.getElementById('sk-aldía').textContent = alDia.toLocaleString('es-AR');
+    document.getElementById('sk-aldía-pct').textContent = `▲ ${Math.round(alDia/total*100)}% del padrón`;
+    document.getElementById('sk-morosos').textContent = morosos.toLocaleString('es-AR');
+    document.getElementById('sk-morosos-pct').textContent = `▼ ${Math.round(morosos/total*100)}% del padrón`;
+    document.getElementById('sk-sindatos').textContent = sinDatos.toLocaleString('es-AR');
+    if(syncedAt){
+      const fecha = new Date(syncedAt).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      document.getElementById('socios-upload-status').innerHTML = `✅ Sincronizado con Global Fan · <b>${total.toLocaleString('es-AR')} socios</b> · ${fecha} · <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Actualizar ahora</button>`;
+    }
+    const cats = [...new Set(sociosData.map(s => s.categoria).filter(Boolean))].sort();
+    const catFilters = document.getElementById('socios-cat-filters');
+    catFilters.innerHTML = cats.length > 1
+      ? ['todas',...cats].map(c => `<button class="chip${c === sociosFiltroCategoria ? ' active':''}" data-cat="${c}" onclick="sociosFiltroCategoria='${c}'; document.querySelectorAll('#socios-cat-filters .chip').forEach(b=>b.classList.toggle('active',b.dataset.cat==='${c}')); renderSocios()">${c === 'todas' ? 'Todas las categorías' : c}</button>`).join('')
+      : '';
+    renderSocios();
+  }
+
+  function renderSocios(){
+    const search = (document.getElementById('socios-search')?.value || '').toLowerCase().trim();
+    const tbody = document.getElementById('socios-body');
+    let filtered = sociosData.filter(s => {
+      if(sociosFiltroEstado !== 'todos' && s.estado !== sociosFiltroEstado) return false;
+      if(sociosFiltroCategoria !== 'todas' && s.categoria !== sociosFiltroCategoria) return false;
+      if(search){ const full = `${s.numero} ${s.nombre} ${s.apellido} ${s.dni} ${s.email}`.toLowerCase(); if(!full.includes(search)) return false; }
+      return true;
+    });
+    const estadoBadge = est => {
+      if(est === 'Al día') return `<span class="badge green">Al día</span>`;
+      if(est === 'Moroso') return `<span class="badge red">Moroso</span>`;
+      if(est === 'Por vencer') return `<span class="badge amber">Por vencer</span>`;
+      if(est === 'Baja') return `<span class="badge vinculo out">Baja</span>`;
+      return `<span class="badge" style="background:#EEF1E9; color:var(--text-soft);">Sin datos</span>`;
+    };
+    tbody.innerHTML = filtered.slice(0,200).map(s => `
+      <tr>
+        <td class="mono" style="font-size:12px;">${s.numero}</td>
+        <td><div class="nm">${s.apellido}${s.apellido&&s.nombre?', ':''}${s.nombre}</div></td>
+        <td>${s.categoria}</td>
+        <td>${estadoBadge(s.estado)}</td>
+        <td class="mono" style="font-size:12px;">${s.ultimaCuota||'—'}</td>
+        <td class="mono" style="font-size:12px;">${s.vencimiento||'—'}</td>
+        <td style="font-size:12px; color:var(--text-soft);">${s.email||'—'}</td>
+      </tr>`).join('');
+    const label = document.getElementById('socios-count-label');
+    label.textContent = filtered.length > 200
+      ? `Mostrando 200 de ${filtered.length.toLocaleString('es-AR')} socios — refiná la búsqueda para ver más.`
+      : `${filtered.length.toLocaleString('es-AR')} socios${search||sociosFiltroEstado!=='todos'?' (filtrado)':''} de ${sociosData.length.toLocaleString('es-AR')} en total.`;
+  }
+
+  document.querySelectorAll('#socios-estado-filters .chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#socios-estado-filters .chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      sociosFiltroEstado = chip.dataset.est;
+      renderSocios();
+    });
+  });
 
   /* ============ INFORME MENSUAL ============ */
 
