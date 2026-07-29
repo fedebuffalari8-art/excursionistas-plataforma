@@ -1,7 +1,4 @@
 // netlify/functions/globalfan-sync.mjs
-// Global Fan usa Devise Token Auth:
-// - Login: POST /auth (REST, no GraphQL)
-// - Datos: POST /graphql con headers de autenticación
 
 import { getStore } from '@netlify/blobs';
 
@@ -18,24 +15,30 @@ async function login() {
   const res = await fetch(`${GF_BASE}/auth`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({
+      query: `mutation userLogin($login: String!, $password: String!) {
+        userLogin(login: $login, password: $password) {
+          credentials { accessToken tokenType uid client }
+          authenticatable { id firstName lastName email }
+        }
+      }`,
+      variables: { login: email, password },
+    }),
   });
 
-  const accessToken = res.headers.get('access-token');
-  const client      = res.headers.get('client');
-  const uid         = res.headers.get('uid');
-  const tokenType   = res.headers.get('token-type') || 'Bearer';
-
-  if (accessToken) {
-    return { accessToken, client, uid, tokenType };
-  }
-
   const body = await res.json().catch(() => ({}));
-  if (body?.data?.accessToken || body?.token) {
-    return { accessToken: body.data?.accessToken || body.token, client: body.data?.client || '', uid: body.data?.uid || email, tokenType: 'Bearer' };
+
+  const creds = body?.data?.userLogin?.credentials;
+  if (creds?.accessToken) {
+    return { accessToken: creds.accessToken, client: creds.client, uid: creds.uid, tokenType: creds.tokenType || 'Bearer' };
   }
 
-  throw new Error(`Login REST falló (${res.status}): ${JSON.stringify(body).slice(0, 300)}`);
+  const accessToken = res.headers.get('access-token');
+  if (accessToken) {
+    return { accessToken, client: res.headers.get('client'), uid: res.headers.get('uid'), tokenType: res.headers.get('token-type') || 'Bearer' };
+  }
+
+  throw new Error(`Login falló (${res.status}): ${JSON.stringify(body).slice(0, 400)}`);
 }
 
 async function getToken(store) {
