@@ -791,24 +791,14 @@
     <!-- SOCIOS -->
     <section class="panel" id="panel-socios">
 
-      <!-- KPIs -->
-      <div class="grid grid-4" id="socios-kpis" style="margin-bottom:18px;">
-        <div class="card kpi hoverable"><h3>Total socios</h3><div class="num" id="sk-total">—</div><div class="delta" style="color:var(--text-faint);">cargados en el sistema</div></div>
-        <div class="card kpi hoverable"><h3>Al día</h3><div class="num" id="sk-aldía" style="color:var(--bg-deep);">—</div><div class="delta up" id="sk-aldía-pct"></div></div>
-        <div class="card kpi hoverable"><h3>Morosos</h3><div class="num" id="sk-morosos" style="color:var(--red);">—</div><div class="delta down" id="sk-morosos-pct"></div></div>
-        <div class="card kpi hoverable"><h3>Sin datos de pago</h3><div class="num" id="sk-sindatos" style="color:var(--amber);">—</div><div class="delta" style="color:var(--text-faint);"></div></div>
-      </div>
-
-      <!-- Carga de datos -->
+      <!-- Barra de sincronización -->
       <div class="card hoverable" id="socios-upload-card" style="margin-bottom:18px;">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
           <div>
-            <h3 style="margin-bottom:4px;">📂 Datos de Global Fan</h3>
-            <div style="font-size:12.5px; color:var(--text-faint); line-height:1.5;" id="socios-upload-status">
-              Sin datos cargados — exportá el listado de socios desde Global Fan (Socios → Exportar Socios) y subilo acá.
-            </div>
+            <h3 style="margin-bottom:4px;">🔗 Global Fan — sincronización en vivo</h3>
+            <div style="font-size:12.5px; color:var(--text-faint);" id="socios-upload-status">Conectando con Global Fan…</div>
           </div>
-          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <button class="btn gold" onclick="sincronizarGlobalFan(true)">🔄 Sincronizar ahora</button>
             <button class="btn ghost" onclick="limpiarSocios()" id="socios-clear-btn" style="display:none;">🗑 Limpiar caché</button>
           </div>
@@ -822,21 +812,47 @@
         </div>
       </div>
 
-      <!-- Buscador y filtros -->
+      <!-- KPIs principales -->
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-bottom:18px;" id="socios-kpis">
+        <div class="card kpi hoverable"><h3>Total socios</h3><div class="num" id="sk-total">—</div><div class="delta" id="sk-total-sub" style="color:var(--text-faint);"></div></div>
+        <div class="card kpi hoverable"><h3>Al día</h3><div class="num" id="sk-aldía" style="color:var(--bg-deep);">—</div><div class="delta up" id="sk-aldía-pct"></div></div>
+        <div class="card kpi hoverable"><h3>Con deuda</h3><div class="num" id="sk-morosos" style="color:var(--red);">—</div><div class="delta down" id="sk-morosos-pct"></div></div>
+        <div class="card kpi hoverable"><h3>Bajas / Suspendidos</h3><div class="num" id="sk-bajas" style="color:var(--amber);">—</div><div class="delta" style="color:var(--text-faint);"></div></div>
+      </div>
+
+      <!-- Dashboards principales -->
+      <div class="grid grid-2" style="margin-bottom:18px;" id="socios-dashboard" style="display:none;">
+        <div class="card hoverable">
+          <h3>Estado de deudas</h3>
+          <div id="socios-donut-deuda"></div>
+        </div>
+        <div class="card hoverable">
+          <h3>Socios por membresía</h3>
+          <div id="socios-donut-membresia"></div>
+        </div>
+      </div>
+
+      <!-- Deuda por tipo de membresía -->
+      <div class="card hoverable" style="margin-bottom:18px;" id="socios-membresia-card" style="display:none;">
+        <h3 style="margin-bottom:16px;">Estado de deuda por categoría</h3>
+        <div id="socios-membresia-bars"></div>
+      </div>
+
+      <!-- Tabla de socios -->
       <div class="card hoverable" id="socios-table-card" style="display:none;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; margin-bottom:16px;">
           <h3 style="margin-bottom:0;">Padrón de socios</h3>
-          <input type="text" id="socios-search" class="form-input" placeholder="Buscar por nombre, apellido o número…" style="width:260px;" oninput="renderSocios()">
+          <input type="text" id="socios-search" class="form-input" placeholder="Buscar por nombre, apellido, número o DNI…" style="width:280px;" oninput="renderSocios()">
         </div>
         <div class="filter-row" id="socios-estado-filters" style="margin-bottom:16px;">
           <button class="chip active" data-est="todos">Todos</button>
           <button class="chip" data-est="Al día">Al día</button>
           <button class="chip" data-est="Moroso">Moroso</button>
-          <button class="chip" data-est="Sin datos">Sin datos</button>
+          <button class="chip" data-est="Baja">Baja</button>
         </div>
         <div class="filter-row" id="socios-cat-filters" style="margin-bottom:16px;"></div>
         <div class="table-scroll">
-          <table id="socios-table">
+          <table>
             <thead>
               <tr>
                 <th>N° Socio</th>
@@ -844,7 +860,6 @@
                 <th>Categoría</th>
                 <th>Estado</th>
                 <th>Última cuota</th>
-                <th>Vencimiento</th>
                 <th>Email</th>
               </tr>
             </thead>
@@ -2139,31 +2154,87 @@
     const tieneData = sociosData.length > 0;
     document.getElementById('socios-table-card').style.display = tieneData ? 'block' : 'none';
     document.getElementById('socios-clear-btn').style.display = tieneData ? 'inline-flex' : 'none';
+    document.getElementById('socios-dashboard').style.display = tieneData ? 'grid' : 'none';
+    document.getElementById('socios-membresia-card').style.display = tieneData ? 'block' : 'none';
+
     if(!tieneData){
-      ['sk-total','sk-aldía','sk-morosos','sk-sindatos'].forEach(id => document.getElementById(id).textContent = '—');
+      ['sk-total','sk-aldía','sk-morosos','sk-bajas'].forEach(id => document.getElementById(id).textContent = '—');
       document.getElementById('sk-aldía-pct').textContent = '';
       document.getElementById('sk-morosos-pct').textContent = '';
       return;
     }
-    const total = sociosData.length;
-    const alDia = sociosData.filter(s => s.estado === 'Al día').length;
-    const morosos = sociosData.filter(s => s.estado === 'Moroso').length;
-    const sinDatos = sociosData.filter(s => !['Al día','Moroso'].includes(s.estado)).length;
+
+    const total    = sociosData.length;
+    const alDia    = sociosData.filter(s => s.estado === 'Al día').length;
+    const morosos  = sociosData.filter(s => s.estado === 'Moroso').length;
+    const bajas    = sociosData.filter(s => ['Baja','Suspendido'].includes(s.estado)).length;
+
     document.getElementById('sk-total').textContent = total.toLocaleString('es-AR');
+    document.getElementById('sk-total-sub').textContent = 'en el padrón';
     document.getElementById('sk-aldía').textContent = alDia.toLocaleString('es-AR');
     document.getElementById('sk-aldía-pct').textContent = `▲ ${Math.round(alDia/total*100)}% del padrón`;
     document.getElementById('sk-morosos').textContent = morosos.toLocaleString('es-AR');
-    document.getElementById('sk-morosos-pct').textContent = `▼ ${Math.round(morosos/total*100)}% del padrón`;
-    document.getElementById('sk-sindatos').textContent = sinDatos.toLocaleString('es-AR');
+    document.getElementById('sk-morosos-pct').textContent = `▼ ${Math.round(morosos/total*100)}% del padrón (${Math.round(morosos/total*100)}% con deuda)`;
+    document.getElementById('sk-bajas').textContent = bajas.toLocaleString('es-AR');
+
     if(syncedAt){
       const fecha = new Date(syncedAt).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
       document.getElementById('socios-upload-status').innerHTML = `✅ Sincronizado con Global Fan · <b>${total.toLocaleString('es-AR')} socios</b> · ${fecha} · <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Actualizar ahora</button>`;
     }
-    const cats = [...new Set(sociosData.map(s => s.categoria).filter(Boolean))].sort();
+
+    // Donut: estado de deudas
+    const deudaEl = document.getElementById('socios-donut-deuda');
+    deudaEl.innerHTML = '';
+    donut(deudaEl, [
+      { label: `Sin deuda (${alDia})`, value: alDia, colorHex: '#02632E' },
+      { label: `Con deuda (${morosos})`, value: morosos, colorHex: '#E85D4A' },
+      ...(bajas > 0 ? [{ label: `Baja/Susp. (${bajas})`, value: bajas, colorHex: '#C0A270' }] : []),
+    ], { size: 150, stroke: 20 });
+
+    // Donut: por membresía
+    const cats = {};
+    sociosData.forEach(s => { cats[s.categoria] = (cats[s.categoria]||0)+1; });
+    const catEntries = Object.entries(cats).sort((a,b)=>b[1]-a[1]);
+    const palette = ['#02632E','#C0A270','#7C8FC4','#E85D4A','#5E9E7A','#D4A853','#8B7FB8','#E8926A','#4A9BB8','#B8A84A'];
+    const membresiaEl = document.getElementById('socios-donut-membresia');
+    membresiaEl.innerHTML = '';
+    donut(membresiaEl, catEntries.map(([label,value],i) => ({
+      label: `${label} (${value})`, value, colorHex: palette[i%palette.length]
+    })), { size: 150, stroke: 20 });
+
+    // Barras: deuda por categoría
+    const membrasiaContainer = document.getElementById('socios-membresia-bars');
+    const topCats = catEntries.slice(0, 8);
+    membrasiaContainer.innerHTML = topCats.map(([cat]) => {
+      const total_cat = sociosData.filter(s => s.categoria === cat).length;
+      const aldia_cat = sociosData.filter(s => s.categoria === cat && s.estado === 'Al día').length;
+      const moroso_cat = sociosData.filter(s => s.categoria === cat && s.estado === 'Moroso').length;
+      const max = Math.max(aldia_cat, moroso_cat, 1);
+      return `
+        <div style="margin-bottom:14px;">
+          <div style="font-size:12.5px; font-weight:500; margin-bottom:6px; color:var(--text-dark);">${cat} <span style="color:var(--text-faint); font-weight:400;">(${total_cat})</span></div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <div style="flex:1; height:10px; background:#EEF1E9; border-radius:5px; overflow:hidden;">
+              <div style="width:${Math.round(aldia_cat/total_cat*100)}%; height:100%; background:#02632E; border-radius:5px;"></div>
+            </div>
+            <span style="font-size:12px; font-family:var(--font-mono); color:#02632E; width:30px;">${aldia_cat}</span>
+            <div style="flex:1; height:10px; background:#EEF1E9; border-radius:5px; overflow:hidden;">
+              <div style="width:${Math.round(moroso_cat/total_cat*100)}%; height:100%; background:#E85D4A; border-radius:5px;"></div>
+            </div>
+            <span style="font-size:12px; font-family:var(--font-mono); color:#E85D4A; width:30px;">${moroso_cat}</span>
+          </div>
+          <div style="display:flex; gap:24px; margin-top:3px; font-size:11px; color:var(--text-faint);">
+            <span>● Al día</span><span>● Con deuda</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    // Filtros de categoría
     const catFilters = document.getElementById('socios-cat-filters');
-    catFilters.innerHTML = cats.length > 1
-      ? ['todas',...cats].map(c => `<button class="chip${c === sociosFiltroCategoria ? ' active':''}" data-cat="${c}" onclick="sociosFiltroCategoria='${c}'; document.querySelectorAll('#socios-cat-filters .chip').forEach(b=>b.classList.toggle('active',b.dataset.cat==='${c}')); renderSocios()">${c === 'todas' ? 'Todas las categorías' : c}</button>`).join('')
+    catFilters.innerHTML = catEntries.length > 1
+      ? ['todas',...catEntries.map(([c])=>c)].map(c => `<button class="chip${c === sociosFiltroCategoria ? ' active':''}" data-cat="${c}" onclick="sociosFiltroCategoria='${c}'; document.querySelectorAll('#socios-cat-filters .chip').forEach(b=>b.classList.toggle('active',b.dataset.cat==='${c}')); renderSocios()">${c === 'todas' ? 'Todas las categorías' : c}</button>`).join('')
       : '';
+
     renderSocios();
   }
 
