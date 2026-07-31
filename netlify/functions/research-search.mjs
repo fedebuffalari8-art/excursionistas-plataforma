@@ -19,7 +19,7 @@ export default async (request) => {
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         tools: [{ google_search: {} }],
-        generationConfig: { maxOutputTokens: 2000, temperature: 0.3 },
+        generationConfig: { maxOutputTokens: 4000, temperature: 0.3 },
       }),
     });
     if (!res.ok) {
