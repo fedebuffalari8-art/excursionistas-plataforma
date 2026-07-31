@@ -2802,7 +2802,8 @@
     }catch(e){
       // Fallback: usamos la IA para generar un resumen de búsqueda directo en el browser
       await buscarConIA('research-club-results',
-        'Buscá en medios argentinos de fútbol, Twitter/X, TikTok y YouTube las últimas menciones de Club Atlético Excursionistas (fútbol, Primera B, Bajo Belgrano, Buenos Aires). Listá los 8 resultados más relevantes y recientes con título, fuente y un resumen de 1 línea.',
+        `Buscá en medios argentinos de fútbol, Twitter/X, TikTok y YouTube las últimas menciones de Club Atlético Excursionistas (Primera B, Bajo Belgrano, Buenos Aires). Devolvé los 8 resultados más relevantes y recientes como un array JSON con este formato exacto (sin texto adicional, solo el JSON):
+[{"titulo":"título de la noticia","medio":"nombre del medio","url":"https://...","fecha":"fecha","resumen":"resumen de 1-2 líneas","fuente":"medios|twitter|video|general"}]`,
         true);
     }
   }
@@ -2813,7 +2814,9 @@
     const container = document.getElementById('research-jugador-results');
     container.innerHTML = `<div class="research-loading">Buscando perfil de ${nombre}…</div>`;
     await buscarConIA('research-jugador-results',
-      `Hacé un perfil completo del jugador de fútbol "${nombre}" (argentino o que haya jugado en Argentina). Incluí: clubes donde jugó, posición, características de juego, edad aproximada, qué se dice de él en medios deportivos, si tiene actividad en redes sociales, y cualquier dato relevante para un club que esté pensando en contratarlo. Si hay más de un jugador con ese nombre, aclaralo. Respondé en español, formato claro y directo.`,
+      `Hacé un perfil completo del jugador de fútbol "${nombre}" (argentino o que haya jugado en Argentina). Devolvé el resultado como un array JSON con este formato (sin texto adicional, solo el JSON):
+[{"titulo":"Título del hallazgo","medio":"fuente","url":"https://...","fecha":"","resumen":"descripción detallada incluyendo clubes, posición, características de juego, qué se dice de él","fuente":"medios|twitter|video|general"}]
+Si hay noticias recientes, incluilas. Si hay más de un jugador con ese nombre, aclaralo en el primer item.`,
       false);
   }
 
@@ -2829,16 +2832,92 @@
       if(data.error) throw new Error(data.error);
       const texto = data.texto || '';
       if(!texto) throw new Error('Sin respuesta');
+
+      // Intentamos parsear como JSON estructurado primero
+      // Si Gemini devuelve texto libre, lo renderizamos con markdown-to-cards
+      let html = '';
+      try{
+        const parsed = JSON.parse(texto);
+        if(Array.isArray(parsed)){
+          html = parsed.map(item => renderResearchItem(item)).join('');
+        } else {
+          html = renderTextoLibre(texto, esMenciones);
+        }
+      }catch(e){
+        html = renderTextoLibre(texto, esMenciones);
+      }
+
       container.innerHTML = `
-        <div class="card hoverable" style="padding:20px;">
-          <div style="font-size:13.5px; line-height:1.75; color:var(--text-dark); white-space:pre-wrap;">${texto}</div>
-          <div style="font-size:11px; color:var(--text-faint); margin-top:14px; font-family:var(--font-mono);">
-            Generado con Gemini + búsqueda web · ${new Date().toLocaleString('es-AR')}
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <div style="font-size:12px; color:var(--text-faint); font-family:var(--font-mono);">
+            🔍 Generado con Gemini + Google Search · ${new Date().toLocaleString('es-AR')}
           </div>
-        </div>`;
+          <button class="btn ghost" style="font-size:12px; padding:5px 12px;" onclick="this.closest('[id]').previousElementSibling && buscarMencionesClub()">🔄 Actualizar</button>
+        </div>
+        ${html}`;
     }catch(e){
       container.innerHTML = `<div class="ig-empty-note" style="color:var(--red);">No se pudo completar la búsqueda: ${e.message}</div>`;
     }
+  }
+
+  function renderResearchItem(item){
+    const fuente = detectarFuente(item.url || '', item.titulo || item.title || '');
+    const titulo = item.titulo || item.title || '(sin título)';
+    const snippet = item.resumen || item.snippet || item.descripcion || '';
+    const url = item.url || item.link || '#';
+    const fecha = item.fecha || item.date || '';
+    const medio = item.medio || item.fuente || item.source || (() => { try{ return new URL(url).hostname.replace('www.',''); }catch(e){ return ''; } })();
+
+    return `
+      <div class="research-card">
+        <div class="rc-fuente">
+          <span class="rc-badge ${fuente}">${fuenteLabel(fuente)}</span>
+          ${medio ? `<span style="font-size:11.5px; color:var(--text-faint);">${medio}</span>` : ''}
+          ${fecha ? `<span style="font-size:11px; color:var(--text-faint); margin-left:auto; font-family:var(--font-mono);">${fecha}</span>` : ''}
+        </div>
+        <h4>${titulo}</h4>
+        ${snippet ? `<div class="rc-snippet">${snippet}</div>` : ''}
+        ${url !== '#' ? `<a href="${url}" target="_blank" class="rc-link">Ver nota ↗</a>` : ''}
+      </div>`;
+  }
+
+  function renderTextoLibre(texto, esMenciones){
+    // Convertimos el texto libre de Gemini en tarjetas visuales
+    // Detectamos secciones por líneas en negrita, números, o guiones
+    const lineas = texto.split('\n').filter(l => l.trim());
+    const items = [];
+    let itemActual = null;
+
+    for(const linea of lineas){
+      const l = linea.trim();
+      // Detectar título nuevo: empieza con ##, **, número., o tiene una URL
+      const esTitulo = /^(##|###|\*\*|\d+\.|-)/.test(l) || l.length < 80 && !l.includes('http');
+      const tieneUrl = l.match(/https?:\/\/[^\s]+/);
+
+      if(esTitulo && l.length > 5){
+        if(itemActual) items.push(itemActual);
+        itemActual = {
+          titulo: l.replace(/^(##|###|\*\*|\d+\.|-)\s*/, '').replace(/\*\*/g,'').trim(),
+          snippet: '',
+          url: '',
+        };
+      } else if(tieneUrl && itemActual){
+        itemActual.url = tieneUrl[0];
+      } else if(itemActual && l.length > 10){
+        itemActual.snippet += (itemActual.snippet ? ' ' : '') + l.replace(/\*\*/g,'').trim();
+      } else if(l.length > 5){
+        if(itemActual) items.push(itemActual);
+        itemActual = { titulo: l.replace(/\*\*/g,'').trim(), snippet: '', url: '' };
+      }
+    }
+    if(itemActual) items.push(itemActual);
+
+    if(items.length === 0){
+      // Fallback: mostrar como bloque de texto con buen formato
+      return `<div class="research-card"><div style="font-size:13.5px; line-height:1.75; color:var(--text-dark);">${texto.replace(/\*\*(.*?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>')}</div></div>`;
+    }
+
+    return items.map(item => renderResearchItem(item)).join('');
   }
 
   /* ============ GENERADOR DE COPIES ============ */
