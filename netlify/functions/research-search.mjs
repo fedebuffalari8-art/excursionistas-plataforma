@@ -1,6 +1,6 @@
 // netlify/functions/research-search.mjs
 
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 export default async (request) => {
   if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 });
