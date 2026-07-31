@@ -520,6 +520,19 @@
   .research-loading::before{ content:''; width:18px; height:18px; border:2px solid var(--border); border-top-color:var(--bg-deep); border-radius:50%; animation:spin 0.8s linear infinite; flex-shrink:0; }
   @keyframes spin{ to{ transform:rotate(360deg); } }
 
+  /* ---------- RESEARCH PROSE (perfil jugador / texto libre) ---------- */
+  .research-prose{ background:#fff; border:1px solid var(--border); border-radius:12px; padding:24px 28px; }
+  .rp-section-title{ font-family:var(--font-display); font-size:15px; font-weight:600; color:var(--bg-deep); margin:20px 0 10px; padding-bottom:6px; border-bottom:2px solid #EEF1E9; }
+  .rp-section-title.rp-big{ font-size:18px; margin-top:0; }
+  .rp-para{ font-size:13.5px; color:var(--text-dark); line-height:1.7; margin:6px 0; }
+  .rp-list{ list-style:none; padding:0; margin:6px 0 12px; }
+  .rp-list-item{ font-size:13.5px; color:var(--text-dark); line-height:1.65; padding:5px 0 5px 18px; position:relative; }
+  .rp-list-item::before{ content:'·'; position:absolute; left:4px; color:var(--bg-deep); font-weight:700; font-size:16px; line-height:1.4; }
+  .rp-numbered-item{ display:flex; gap:12px; align-items:flex-start; font-size:13.5px; color:var(--text-dark); line-height:1.65; padding:6px 0; }
+  .rp-num{ background:var(--bg-deep); color:#fff; font-size:11px; font-weight:600; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px; font-family:var(--font-mono); }
+  .rp-divider{ border:none; border-top:1px solid #EEF1E9; margin:16px 0; }
+
+
   @media print{
     .sidebar, .topbar, header.topbar, #informe-ia-btn, .btn, .chip, .hamburger-btn{ display:none !important; }
     main{ width:100%; }
@@ -2882,42 +2895,47 @@ Si hay noticias recientes, incluilas. Si hay más de un jugador con ese nombre, 
   }
 
   function renderTextoLibre(texto, esMenciones){
-    // Convertimos el texto libre de Gemini en tarjetas visuales
-    // Detectamos secciones por líneas en negrita, números, o guiones
-    const lineas = texto.split('\n').filter(l => l.trim());
-    const items = [];
-    let itemActual = null;
+    // Convierte markdown de Gemini en HTML bien formateado
+    const lines = texto.split('\n');
+    let html = '<div class="research-prose">';
+    let inList = false;
 
-    for(const linea of lineas){
-      const l = linea.trim();
-      // Detectar título nuevo: empieza con ##, **, número., o tiene una URL
-      const esTitulo = /^(##|###|\*\*|\d+\.|-)/.test(l) || l.length < 80 && !l.includes('http');
-      const tieneUrl = l.match(/https?:\/\/[^\s]+/);
+    for(const raw of lines){
+      const l = raw.trim();
+      if(!l){ if(inList){ html += '</ul>'; inList = false; } html += '<div style="height:10px;"></div>'; continue; }
 
-      if(esTitulo && l.length > 5){
-        if(itemActual) items.push(itemActual);
-        itemActual = {
-          titulo: l.replace(/^(##|###|\*\*|\d+\.|-)\s*/, '').replace(/\*\*/g,'').trim(),
-          snippet: '',
-          url: '',
-        };
-      } else if(tieneUrl && itemActual){
-        itemActual.url = tieneUrl[0];
-      } else if(itemActual && l.length > 10){
-        itemActual.snippet += (itemActual.snippet ? ' ' : '') + l.replace(/\*\*/g,'').trim();
-      } else if(l.length > 5){
-        if(itemActual) items.push(itemActual);
-        itemActual = { titulo: l.replace(/\*\*/g,'').trim(), snippet: '', url: '' };
+      // Encabezados ### o ##
+      if(l.startsWith('### ')){ if(inList){ html += '</ul>'; inList = false; } html += `<div class="rp-section-title">${l.replace('### ','').replace(/\*\*/g,'')}</div>`; continue; }
+      if(l.startsWith('## ')){ if(inList){ html += '</ul>'; inList = false; } html += `<div class="rp-section-title rp-big">${l.replace('## ','').replace(/\*\*/g,'')}</div>`; continue; }
+
+      // Separador ---
+      if(l === '---' || l === '—'){ if(inList){ html += '</ul>'; inList = false; } html += '<hr class="rp-divider">'; continue; }
+
+      // Ítems de lista * o -
+      if(l.startsWith('* ') || l.startsWith('- ')){
+        if(!inList){ html += '<ul class="rp-list">'; inList = true; }
+        const content = l.slice(2).replace(/\*\*(.*?)\*\*/g,'<b>$1</b>');
+        html += `<li class="rp-list-item">${content}</li>`;
+        continue;
       }
-    }
-    if(itemActual) items.push(itemActual);
 
-    if(items.length === 0){
-      // Fallback: mostrar como bloque de texto con buen formato
-      return `<div class="research-card"><div style="font-size:13.5px; line-height:1.75; color:var(--text-dark);">${texto.replace(/\*\*(.*?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>')}</div></div>`;
+      // Ítems numerados 1. 2. etc
+      if(/^\d+\.\s/.test(l)){
+        if(inList){ html += '</ul>'; inList = false; }
+        const content = l.replace(/^\d+\.\s/,'').replace(/\*\*(.*?)\*\*/g,'<b>$1</b>');
+        html += `<div class="rp-numbered-item"><span class="rp-num">${l.match(/^\d+/)[0]}</span><span>${content}</span></div>`;
+        continue;
+      }
+
+      // Párrafo normal
+      if(inList){ html += '</ul>'; inList = false; }
+      const content = l.replace(/\*\*(.*?)\*\*/g,'<b>$1</b>');
+      html += `<p class="rp-para">${content}</p>`;
     }
 
-    return items.map(item => renderResearchItem(item)).join('');
+    if(inList) html += '</ul>';
+    html += '</div>';
+    return html;
   }
 
   /* ============ GENERADOR DE COPIES ============ */
