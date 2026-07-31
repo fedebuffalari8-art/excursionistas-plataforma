@@ -499,6 +499,27 @@
   .informe-rank-val{ font-family:var(--font-mono); font-size:12.5px; color:var(--text-dark); flex-shrink:0; }
   .informe-ia-bubble{ background:#EDF1E8; border-radius:10px; padding:16px 18px; font-size:13.5px; line-height:1.7; color:var(--text-dark); }
 
+  /* ---------- RESEARCH ---------- */
+  .research-card{
+    background:#fff; border:1px solid var(--border); border-radius:10px;
+    padding:16px; margin-bottom:12px; transition:box-shadow 0.15s;
+  }
+  .research-card:hover{ box-shadow:0 2px 12px rgba(0,0,0,0.07); }
+  .research-card .rc-fuente{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .research-card .rc-fuente .rc-badge{ font-size:11px; padding:3px 8px; border-radius:5px; font-family:var(--font-mono); font-weight:500; }
+  .research-card .rc-badge.medios{ background:#EDF1E8; color:#357047; }
+  .research-card .rc-badge.twitter{ background:#0F1419; color:#fff; }
+  .research-card .rc-badge.video{ background:#FBEAE8; color:#B5483D; }
+  .research-card .rc-badge.general{ background:#EEF1E9; color:var(--text-soft); }
+  .research-card h4{ font-size:14px; font-weight:500; color:var(--text-dark); margin-bottom:6px; line-height:1.4; }
+  .research-card .rc-snippet{ font-size:13px; color:var(--text-soft); line-height:1.5; margin-bottom:10px; }
+  .research-card .rc-meta{ display:flex; gap:14px; font-size:11.5px; color:var(--text-faint); font-family:var(--font-mono); }
+  .research-card a.rc-link{ color:var(--bg-deep); font-size:12px; text-decoration:none; font-weight:500; }
+  .research-card a.rc-link:hover{ text-decoration:underline; }
+  .research-loading{ display:flex; align-items:center; gap:10px; font-size:13px; color:var(--text-soft); padding:20px; }
+  .research-loading::before{ content:''; width:18px; height:18px; border:2px solid var(--border); border-top-color:var(--bg-deep); border-radius:50%; animation:spin 0.8s linear infinite; flex-shrink:0; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
   @media print{
     .sidebar, .topbar, header.topbar, #informe-ia-btn, .btn, .chip, .hamburger-btn{ display:none !important; }
     main{ width:100%; }
@@ -598,6 +619,7 @@
     <button data-panel="sponsors"><span class="ic">◈</span> Sponsors</button>
     <button data-panel="redes"><span class="ic">◎</span> Redes &amp; Campañas</button>
     <button data-panel="informe"><span class="ic">📰</span> Informe Mensual</button>
+    <button data-panel="research"><span class="ic">📡</span> Research & Prensa</button>
     <button data-panel="ia"><span class="ic">✦</span> Recomendaciones IA</button>
   </nav>
   <div class="sidebar-foot">
@@ -1181,6 +1203,58 @@
       <div id="informe-empty" class="ig-empty-note" style="margin-top:8px;">
         Hacé click en "Generar informe" para ver el resumen del mes seleccionado.
       </div>
+    </section>
+
+    <!-- RESEARCH -->
+    <section class="panel" id="panel-research">
+
+      <!-- Tabs -->
+      <div class="filter-row" id="research-tabs" style="margin-bottom:20px;">
+        <button class="chip active" data-tab="club" onclick="switchResearchTab('club')">🏟️ Imagen del club</button>
+        <button class="chip" data-tab="jugador" onclick="switchResearchTab('jugador')">🔍 Perfil de jugador</button>
+      </div>
+
+      <!-- TAB: Imagen del club -->
+      <div id="research-tab-club">
+        <div class="card hoverable" style="margin-bottom:18px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
+            <div>
+              <h3 style="margin-bottom:4px;">📡 Menciones de Excursionistas</h3>
+              <div style="font-size:12.5px; color:var(--text-faint);">Medios deportivos, Twitter/X, TikTok, YouTube — todo lo que se dice del club hoy.</div>
+            </div>
+            <button class="btn gold" onclick="buscarMencionesClub()">🔄 Actualizar ahora</button>
+          </div>
+          <div class="filter-row" style="margin-top:14px;" id="research-fuente-filters">
+            <button class="chip active" data-fuente="todo">Todo</button>
+            <button class="chip" data-fuente="medios">📰 Medios</button>
+            <button class="chip" data-fuente="twitter">✕ Twitter/X</button>
+            <button class="chip" data-fuente="video">▶ Video</button>
+          </div>
+        </div>
+
+        <div id="research-club-results">
+          <div class="ig-empty-note">Clickeá "Actualizar ahora" para buscar las últimas menciones del club.</div>
+        </div>
+      </div>
+
+      <!-- TAB: Perfil de jugador -->
+      <div id="research-tab-jugador" style="display:none;">
+        <div class="card hoverable" style="margin-bottom:18px;">
+          <h3 style="margin-bottom:14px;">🔍 Buscar perfil de jugador</h3>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+            <div style="flex:1; min-width:220px;">
+              <label class="form-label">Nombre del jugador</label>
+              <input type="text" id="research-jugador-input" class="form-input" placeholder="Ej: Gonzalo Pedrosa, Lucas Chambi…" onkeydown="if(event.key==='Enter') buscarJugador()">
+            </div>
+            <button class="btn gold" onclick="buscarJugador()">🔍 Buscar</button>
+          </div>
+          <div style="font-size:12px; color:var(--text-faint); margin-top:10px;">Busca noticias, redes sociales, historial de clubes y todo lo que se diga del jugador en medios argentinos e internacionales.</div>
+        </div>
+        <div id="research-jugador-results">
+          <div class="ig-empty-note">Escribí el nombre de un jugador y buscá su perfil completo.</div>
+        </div>
+      </div>
+
     </section>
 
     <!-- IA -->
@@ -2618,6 +2692,156 @@
     }, 600);
   }
 
+  /* ============ RESEARCH & PRENSA ============ */
+
+  let researchTabActual = 'club';
+  let researchFuenteActual = 'todo';
+  let researchClubResultados = [];
+
+  function switchResearchTab(tab){
+    researchTabActual = tab;
+    document.querySelectorAll('#research-tabs .chip').forEach(c => c.classList.toggle('active', c.dataset.tab === tab));
+    document.getElementById('research-tab-club').style.display = tab === 'club' ? 'block' : 'none';
+    document.getElementById('research-tab-jugador').style.display = tab === 'jugador' ? 'block' : 'none';
+  }
+
+  document.querySelectorAll('#research-fuente-filters .chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#research-fuente-filters .chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      researchFuenteActual = chip.dataset.fuente;
+      renderResearchResultados(researchClubResultados, 'research-club-results');
+    });
+  });
+
+  function detectarFuente(url, title){
+    const u = (url||'').toLowerCase();
+    const t = (title||'').toLowerCase();
+    if(u.includes('twitter.com') || u.includes('x.com') || t.includes('twitter') || t.includes('tweet')) return 'twitter';
+    if(u.includes('tiktok.com') || u.includes('youtube.com') || u.includes('youtu.be') || u.includes('instagram.com')) return 'video';
+    if(u.includes('ole.com') || u.includes('tycsports') || u.includes('espn') || u.includes('infobae') || u.includes('clarin') || u.includes('lanacion') || u.includes('minuto90') || u.includes('futbolargentino') || u.includes('cadena3')) return 'medios';
+    return 'general';
+  }
+
+  function fuenteLabel(fuente){
+    const map = { twitter:'✕ Twitter/X', video:'▶ Video', medios:'📰 Medios', general:'🌐 Web' };
+    return map[fuente] || '🌐 Web';
+  }
+
+  function renderResearchResultados(resultados, containerId){
+    const container = document.getElementById(containerId);
+    if(!resultados || !resultados.length){
+      container.innerHTML = `<div class="ig-empty-note">No se encontraron resultados. Probá en unos minutos.</div>`;
+      return;
+    }
+    const filtrados = researchFuenteActual === 'todo'
+      ? resultados
+      : resultados.filter(r => detectarFuente(r.url, r.title) === researchFuenteActual);
+
+    if(!filtrados.length){
+      container.innerHTML = `<div class="ig-empty-note">No hay resultados para ese filtro.</div>`;
+      return;
+    }
+
+    container.innerHTML = filtrados.map(r => {
+      const fuente = detectarFuente(r.url, r.title);
+      const dominio = (() => { try{ return new URL(r.url).hostname.replace('www.',''); }catch(e){ return r.url; } })();
+      return `
+        <div class="research-card">
+          <div class="rc-fuente">
+            <span class="rc-badge ${fuente}">${fuenteLabel(fuente)}</span>
+            <span style="font-size:11.5px; color:var(--text-faint);">${dominio}</span>
+          </div>
+          <h4>${r.title || '(sin título)'}</h4>
+          ${r.snippet ? `<div class="rc-snippet">${r.snippet}</div>` : ''}
+          <div class="rc-meta">
+            ${r.date ? `<span>${r.date}</span>` : ''}
+            <a href="${r.url}" target="_blank" class="rc-link">Ver nota ↗</a>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  async function buscarMencionesClub(){
+    const container = document.getElementById('research-club-results');
+    container.innerHTML = `<div class="research-loading">Buscando menciones de Excursionistas en medios y redes…</div>`;
+
+    // Buscamos en paralelo con diferentes ángulos para máxima cobertura
+    const queries = [
+      'Excursionistas fútbol argentino',
+      'Excursionistas Club Atlético',
+      'site:twitter.com OR site:x.com Excursionistas fútbol',
+      'Excursionistas Bajo Belgrano',
+    ];
+
+    try{
+      const resultados = [];
+      for(const q of queries){
+        try{
+          const res = await fetch('/.netlify/functions/web-search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: q }),
+          });
+          if(res.ok){
+            const data = await res.json();
+            (data.results || []).forEach(r => {
+              if(!resultados.find(x => x.url === r.url)) resultados.push(r);
+            });
+          }
+        }catch(e){}
+      }
+
+      if(!resultados.length) throw new Error('Sin resultados');
+
+      // Ordenamos por fecha descendente si hay fecha
+      resultados.sort((a,b) => (b.date||'') > (a.date||'') ? 1 : -1);
+
+      researchClubResultados = resultados;
+      renderResearchResultados(resultados, 'research-club-results');
+    }catch(e){
+      // Fallback: usamos la IA para generar un resumen de búsqueda directo en el browser
+      await buscarConIA('research-club-results',
+        'Buscá en medios argentinos de fútbol, Twitter/X, TikTok y YouTube las últimas menciones de Club Atlético Excursionistas (fútbol, Primera B, Bajo Belgrano, Buenos Aires). Listá los 8 resultados más relevantes y recientes con título, fuente y un resumen de 1 línea.',
+        true);
+    }
+  }
+
+  async function buscarJugador(){
+    const nombre = document.getElementById('research-jugador-input').value.trim();
+    if(!nombre){ showToast('Escribí el nombre del jugador.'); return; }
+    const container = document.getElementById('research-jugador-results');
+    container.innerHTML = `<div class="research-loading">Buscando perfil de ${nombre}…</div>`;
+    await buscarConIA('research-jugador-results',
+      `Hacé un perfil completo del jugador de fútbol "${nombre}" (argentino o que haya jugado en Argentina). Incluí: clubes donde jugó, posición, características de juego, edad aproximada, qué se dice de él en medios deportivos, si tiene actividad en redes sociales, y cualquier dato relevante para un club que esté pensando en contratarlo. Si hay más de un jugador con ese nombre, aclaralo. Respondé en español, formato claro y directo.`,
+      false);
+  }
+
+  async function buscarConIA(containerId, prompt, esMenciones){
+    const container = document.getElementById(containerId);
+    try{
+      // Usamos Gemini (gratis, sin consumir tokens de Claude)
+      const res = await fetch('/.netlify/functions/research-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await res.json();
+      if(data.error) throw new Error(data.error);
+      const texto = data.texto || '';
+      if(!texto) throw new Error('Sin respuesta');
+      container.innerHTML = `
+        <div class="card hoverable" style="padding:20px;">
+          <div style="font-size:13.5px; line-height:1.75; color:var(--text-dark); white-space:pre-wrap;">${texto}</div>
+          <div style="font-size:11px; color:var(--text-faint); margin-top:14px; font-family:var(--font-mono);">
+            Generado con Gemini + búsqueda web · ${new Date().toLocaleString('es-AR')}
+          </div>
+        </div>`;
+    }catch(e){
+      container.innerHTML = `<div class="ig-empty-note" style="color:var(--red);">No se pudo completar la búsqueda: ${e.message}. Verificá que GEMINI_API_KEY esté configurada en Netlify.</div>`;
+    }
+  }
+
   /* ============ GENERADOR DE COPIES ============ */
   // Plantillas armadas a partir del tono real de @excursiooficial:
   // títulos en "negrita fancy" (unicode), emojis recurrentes, y los
@@ -2748,6 +2972,7 @@
     sponsors: ["Sponsors", "Reportes y métricas para acuerdos comerciales"],
     redes: ["Redes & Campañas", "Rendimiento en redes sociales"],
     informe: ["Informe Mensual", "Resumen ejecutivo de rendimiento en Instagram"],
+    research: ["Research & Prensa", "Imagen del club y perfiles de jugadores en medios y redes"],
     ia: ["Recomendaciones IA", "Generadas a partir de los datos del club"]
   };
   function goPanel(name){
