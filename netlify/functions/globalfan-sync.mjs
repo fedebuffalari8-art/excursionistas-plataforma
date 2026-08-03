@@ -29,7 +29,6 @@ async function login() {
   const email    = process.env.GLOBALFAN_EMAIL;
   const password = process.env.GLOBALFAN_PASSWORD;
   if (!email || !password) throw new Error('Faltan GLOBALFAN_EMAIL o GLOBALFAN_PASSWORD.');
-
   const res = await fetch(`${GF_BASE}/auth`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -74,19 +73,6 @@ const FANS_PAGE_QUERY = `
   }
 `;
 
-const FANS_SIMPLE_QUERY = `
-  query fans {
-    fans {
-      nodes {
-        id fileNumber firstName lastName email phoneNumber documentNumber
-        isMembershipActive isActive membershipName suspensionReason
-        membershipCreatedAt gender points
-        membership { id name price }
-      }
-    }
-  }
-`;
-
 function calcEstado(s) {
   if (!s.isActive) return 'Baja';
   if (s.suspensionReason) return 'Suspendido';
@@ -116,90 +102,75 @@ async function fetchAllSocios(creds) {
   const allSocios = [];
   let after = null;
 
-  for (let page = 0; page < 20; page++) {
+  for (let page = 0; page < 30; page++) {
     const vars = after ? { first: 100, after } : { first: 100 };
     const data = await gqlFetch(FANS_PAGE_QUERY, vars, creds);
 
-    if (!data.errors && data.data?.fans?.nodes) {
-      const { nodes, pageInfo } = data.data.fans;
-      nodes.forEach(s => allSocios.push(mapSocio(s)));
-      if (!pageInfo.hasNextPage) break;
-      after = pageInfo.endCursor;
-    } else {
-      const d2 = await gqlFetch(FANS_SIMPLE_QUERY, {}, creds);
-      if (d2.errors) throw new Error('Error socios: ' + JSON.stringify(d2.errors).slice(0,300));
-      (d2.data?.fans?.nodes || []).forEach(s => allSocios.push(mapSocio(s)));
-      break;
-    }
+    if (data.errors || !data.data?.fans?.nodes) break;
+
+    const { nodes, pageInfo } = data.data.fans;
+    nodes.forEach(s => allSocios.push(mapSocio(s)));
+
+    if (!pageInfo?.hasNextPage || !pageInfo?.endCursor) break;
+    after = pageInfo.endCursor;
   }
 
   return allSocios;
 }
 
-const DASHBOARD_QUERY = `
-  query {
-    fansStats {
-      totalFans activeFans debtFans debitFans verifiedFans
-    }
-  }
-`;
-
-const INGRESOS_QUERY = `
-  query ingresosTotales($from: String, $to: String) {
-    paymentsReport(from: $from, to: $to) {
-      total quotasTotal ticketsTotal
-      byPaymentMethod { method total }
-    }
-  }
-`;
-
-async function fetchDashboard(creds) {
-  try {
-    const today = new Date();
-    const from = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`;
-    const to   = today.toISOString().slice(0,10);
-    const [statsRes, ingresosRes] = await Promise.all([
-      gqlFetch(DASHBOARD_QUERY, {}, creds),
-      gqlFetch(INGRESOS_QUERY, { from, to }, creds),
-    ]);
-    return {
-      stats:    statsRes.data?.fansStats || null,
-      ingresos: ingresosRes.data?.paymentsReport || null,
-    };
-  } catch(e) {
-    return { stats: null, ingresos: null };
-  }
+function calcStats(socios) {
+  const stats = {
+    total: socios.length,
+    alDia: socios.filter(s => s.estado === 'Al día').length,
+    morosos: socios.filter(s => s.estado === 'Moroso').length,
+    bajas: socios.filter(s => s.estado === 'Baja').length,
+    suspendidos: socios.filter(s => s.estado === 'Suspendido').length,
+    porMembresia: {},
+  };
+  socios.forEach(s => {
+    const cat = s.categoria || '—';
+    if (!stats.porMembresia[cat]) stats.porMembresia[cat] = { total:0, alDia:0, morosos:0 };
+    stats.porMembresia[cat].total++;
+    if (s.estado === 'Al día') stats.porMembresia[cat].alDia++;
+    if (s.estado === 'Moroso') stats.porMembresia[cat].morosos++;
+  });
+  return stats;
 }
 
 export default async (request) => {
   const store = getStore('globalfan-data');
+  const url = new URL(request.url);
+  const fullSync = url.searchParams.get('full') === '1';
+
   try {
     const creds = await getToken(store);
-    const [socios, dashboard] = await Promise.all([
-      fetchAllSocios(creds),
-      fetchDashboard(creds),
-    ]);
 
-    const statsLocales = {
-      total:    socios.length,
-      alDia:    socios.filter(s => s.estado === 'Al día').length,
-      morosos:  socios.filter(s => s.estado === 'Moroso').length,
-      bajas:    socios.filter(s => s.estado === 'Baja').length,
-      suspendidos: socios.filter(s => s.estado === 'Suspendido').length,
-      porMembresia: {},
-    };
-    socios.forEach(s => {
-      const cat = s.categoria || '—';
-      if (!statsLocales.porMembresia[cat]) statsLocales.porMembresia[cat] = { total:0, alDia:0, morosos:0 };
-      statsLocales.porMembresia[cat].total++;
-      if (s.estado === 'Al día') statsLocales.porMembresia[cat].alDia++;
-      if (s.estado === 'Moroso') statsLocales.porMembresia[cat].morosos++;
-    });
+    if (!fullSync) {
+      const cached = await store.get('last-sync', { type: 'json' }).catch(() => null);
+      if (cached?.socios?.length > 0) {
+        fetchAllSocios(creds).then(socios => {
+          const statsLocales = calcStats(socios);
+          const syncedAt = new Date().toISOString();
+          store.setJSON('last-sync', { socios, statsLocales, syncedAt }).catch(() => {});
+        }).catch(() => {});
 
+        return Response.json({
+          ok: true,
+          socios: cached.socios,
+          statsLocales: cached.statsLocales,
+          syncedAt: cached.syncedAt,
+          total: cached.socios.length,
+          fromCache: true,
+        });
+      }
+    }
+
+    const socios = await fetchAllSocios(creds);
+    const statsLocales = calcStats(socios);
     const syncedAt = new Date().toISOString();
-    await store.setJSON('last-sync', { socios, dashboard, statsLocales, syncedAt });
+    await store.setJSON('last-sync', { socios, statsLocales, syncedAt });
 
-    return Response.json({ ok: true, socios, dashboard, statsLocales, syncedAt, total: socios.length });
+    return Response.json({ ok: true, socios, statsLocales, syncedAt, total: socios.length });
   } catch(e) {
     await store.delete(TOKEN_CACHE_KEY).catch(() => {});
     return Response.json({ ok: false, error: e.message }, { status: 500 });
