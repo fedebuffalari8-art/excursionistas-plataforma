@@ -2131,23 +2131,51 @@
 
   async function sincronizarGlobalFan(mostrarToast = true){
     const statusEl = document.getElementById('socios-upload-status');
-    if(statusEl) statusEl.innerHTML = '🔄 Sincronizando con Global Fan…';
+    if(statusEl) statusEl.innerHTML = '🔄 Iniciando sincronización con Global Fan…';
+
     try{
-      const res = await fetch('/.netlify/functions/globalfan-sync');
-      const data = await res.json();
+      // Sync por chunks — llama repetidamente hasta traer todos los socios
+      let cursor = null;
+      let fetched = 0;
+      let intentos = 0;
 
-      if(!data.ok) throw new Error(data.error || 'Error desconocido');
+      // Reset del acumulado anterior
+      await fetch('/.netlify/functions/globalfan-sync-chunk?reset=1');
 
-      sociosData = data.socios || [];
+      while(intentos < 20){
+        const url = cursor
+          ? `/.netlify/functions/globalfan-sync-chunk?cursor=${encodeURIComponent(cursor)}`
+          : '/.netlify/functions/globalfan-sync-chunk';
 
-      // Intentamos guardar en localStorage como caché (falla silenciosamente si no hay)
-      try{ localStorage.setItem(SOCIOS_KEY, JSON.stringify({ socios: sociosData, syncedAt: data.syncedAt })); }catch(e){}
+        const res = await fetch(url);
+        const data = await res.json();
 
-      renderSociosPanel(data.syncedAt);
-      if(mostrarToast) showToast(`✓ ${sociosData.length.toLocaleString('es-AR')} socios sincronizados desde Global Fan.`);
+        if(!data.ok) throw new Error(data.error || 'Error en la sincronización');
+
+        fetched = data.fetched || fetched;
+        if(statusEl) statusEl.innerHTML = `🔄 Sincronizando… ${fetched} socios cargados`;
+
+        if(data.done){
+          // Sync completa — traemos el resultado final del caché
+          const finalRes = await fetch('/.netlify/functions/globalfan-sync');
+          const finalData = await finalRes.json();
+          if(!finalData.ok) throw new Error(finalData.error);
+
+          sociosData = finalData.socios || [];
+          try{ localStorage.setItem(SOCIOS_KEY, JSON.stringify({ socios: sociosData, syncedAt: finalData.syncedAt })); }catch(e){}
+          renderSociosPanel(finalData.syncedAt);
+          if(mostrarToast) showToast(`✓ ${sociosData.length.toLocaleString('es-AR')} socios sincronizados desde Global Fan.`);
+          return;
+        }
+
+        cursor = data.nextCursor;
+        intentos++;
+      }
+
+      throw new Error('Se alcanzó el límite de páginas.');
     }catch(e){
       if(sociosData.length > 0){
-        if(statusEl) statusEl.innerHTML = `⚠️ No se pudo sincronizar ahora — mostrando datos guardados. <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Reintentar</button>`;
+        if(statusEl) statusEl.innerHTML = `⚠️ No se pudo sincronizar — mostrando datos guardados. <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Reintentar</button>`;
       } else {
         if(statusEl) statusEl.innerHTML = `Sin conexión con Global Fan. <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Reintentar</button>`;
         document.getElementById('socios-upload-manual').style.display = 'flex';
