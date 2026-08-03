@@ -94,7 +94,7 @@ export default async (request) => {
 
     const { nodes, pageInfo } = data.data.fans;
     const socios = (nodes || []).map(mapSocio);
-    const hasMore = pageInfo?.hasNextPage && pageInfo?.endCursor;
+    const hasMore = pageInfo?.hasNextPage && pageInfo?.endCursor && socios.length >= 30;
 
     if (noAccum) {
       return Response.json({
