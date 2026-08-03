@@ -834,7 +834,7 @@
             <div style="font-size:12.5px; color:var(--text-faint);" id="socios-upload-status">Conectando con Global Fan…</div>
           </div>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn gold" onclick="sincronizarGlobalFan(true)">🔄 Sincronizar ahora</button>
+            <button class="btn gold" id="socios-sync-btn" onclick="sincronizarGlobalFan(true)">🔄 Sincronizar ahora</button>
             <button class="btn ghost" onclick="limpiarSocios()" id="socios-clear-btn" style="display:none;">🗑 Limpiar caché</button>
           </div>
         </div>
@@ -2131,6 +2131,8 @@
 
   async function sincronizarGlobalFan(mostrarToast = true){
     const statusEl = document.getElementById('socios-upload-status');
+    const btn = document.getElementById('socios-sync-btn');
+    if(btn){ btn.disabled = true; btn.textContent = '⏳ Sincronizando…'; }
 
     try{
       const todosLosSocios = [];
@@ -2155,6 +2157,7 @@
           try{ localStorage.setItem(SOCIOS_KEY, JSON.stringify({ socios: sociosData, syncedAt })); }catch(e){}
           renderSociosPanel(syncedAt);
           if(mostrarToast) showToast(`✓ ${sociosData.length.toLocaleString('es-AR')} socios actualizados.`);
+          if(btn){ btn.disabled = false; btn.textContent = '🔄 Sincronizar ahora'; }
           return;
         }
 
@@ -2163,6 +2166,7 @@
       }
 
     }catch(e){
+      if(btn){ btn.disabled = false; btn.textContent = '🔄 Sincronizar ahora'; }
       if(sociosData.length > 0){
         const fecha = new Date().toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
         if(statusEl) statusEl.innerHTML = `✅ Datos guardados · <b>${sociosData.length.toLocaleString('es-AR')} socios</b> · ${fecha} · <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Actualizar ahora</button>`;
