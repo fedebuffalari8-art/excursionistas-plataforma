@@ -2131,54 +2131,41 @@
 
   async function sincronizarGlobalFan(mostrarToast = true){
     const statusEl = document.getElementById('socios-upload-status');
-    if(statusEl) statusEl.innerHTML = '🔄 Iniciando sincronización con Global Fan…';
 
     try{
-      // Reset del acumulado anterior
-      await fetch('/.netlify/functions/globalfan-sync-chunk?reset=1');
-
+      const todosLosSocios = [];
       let cursor = null;
-      let fetched = 0;
-      let done = false;
+      let paginas = 0;
 
-      while(!done){
+      while(paginas < 50){
         const url = cursor
-          ? `/.netlify/functions/globalfan-sync-chunk?cursor=${encodeURIComponent(cursor)}`
-          : '/.netlify/functions/globalfan-sync-chunk';
+          ? `/.netlify/functions/globalfan-sync-chunk?cursor=${encodeURIComponent(cursor)}&noAccum=1`
+          : '/.netlify/functions/globalfan-sync-chunk?noAccum=1';
 
         const res = await fetch(url);
         const data = await res.json();
 
         if(!data.ok) throw new Error(data.error || 'Error en la sincronización');
 
-        done = data.done;
-        fetched = data.done ? data.total : (data.fetched || fetched);
+        if(data.socios) todosLosSocios.push(...data.socios);
 
-        if(statusEl) statusEl.innerHTML = `🔄 Sincronizando… ${fetched.toLocaleString('es-AR')} socios cargados`;
-
-        if(done){
-          // El chunk ya guardó todo en Blobs — mostramos directamente
-          // Traemos el resultado final
-          const finalRes = await fetch('/.netlify/functions/globalfan-sync-chunk?getResult=1');
-          const finalData = await finalRes.json();
-          const socios = finalData.socios || [];
-
-          sociosData = socios;
+        if(data.done || !data.nextCursor){
+          sociosData = todosLosSocios;
           const syncedAt = new Date().toISOString();
           try{ localStorage.setItem(SOCIOS_KEY, JSON.stringify({ socios: sociosData, syncedAt })); }catch(e){}
           renderSociosPanel(syncedAt);
-          if(mostrarToast) showToast(`✓ ${sociosData.length.toLocaleString('es-AR')} socios sincronizados desde Global Fan.`);
+          if(mostrarToast) showToast(`✓ ${sociosData.length.toLocaleString('es-AR')} socios actualizados.`);
           return;
         }
 
         cursor = data.nextCursor;
-
-        // Pequeña pausa para no saturar la API
-        await new Promise(r => setTimeout(r, 300));
+        paginas++;
       }
+
     }catch(e){
       if(sociosData.length > 0){
-        if(statusEl) statusEl.innerHTML = `⚠️ Sync interrumpida — mostrando datos guardados. <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Reintentar</button>`;
+        const fecha = new Date().toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+        if(statusEl) statusEl.innerHTML = `✅ Datos guardados · <b>${sociosData.length.toLocaleString('es-AR')} socios</b> · ${fecha} · <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Actualizar ahora</button>`;
       } else {
         if(statusEl) statusEl.innerHTML = `Sin conexión con Global Fan. <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Reintentar</button>`;
         document.getElementById('socios-upload-manual').style.display = 'flex';
