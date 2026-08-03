@@ -2134,15 +2134,14 @@
     if(statusEl) statusEl.innerHTML = '🔄 Iniciando sincronización con Global Fan…';
 
     try{
-      // Sync por chunks — llama repetidamente hasta traer todos los socios
-      let cursor = null;
-      let fetched = 0;
-      let intentos = 0;
-
       // Reset del acumulado anterior
       await fetch('/.netlify/functions/globalfan-sync-chunk?reset=1');
 
-      while(intentos < 20){
+      let cursor = null;
+      let fetched = 0;
+      let done = false;
+
+      while(!done){
         const url = cursor
           ? `/.netlify/functions/globalfan-sync-chunk?cursor=${encodeURIComponent(cursor)}`
           : '/.netlify/functions/globalfan-sync-chunk';
@@ -2152,11 +2151,13 @@
 
         if(!data.ok) throw new Error(data.error || 'Error en la sincronización');
 
-        fetched = data.fetched || fetched;
-        if(statusEl) statusEl.innerHTML = `🔄 Sincronizando… ${fetched} socios cargados`;
+        done = data.done;
+        fetched = data.done ? data.total : (data.fetched || fetched);
 
-        if(data.done){
-          // Sync completa — traemos el resultado final del caché
+        if(statusEl) statusEl.innerHTML = `🔄 Sincronizando… ${fetched.toLocaleString('es-AR')} socios cargados`;
+
+        if(done){
+          // Traemos el resultado final desde el caché de Blobs
           const finalRes = await fetch('/.netlify/functions/globalfan-sync');
           const finalData = await finalRes.json();
           if(!finalData.ok) throw new Error(finalData.error);
@@ -2169,13 +2170,13 @@
         }
 
         cursor = data.nextCursor;
-        intentos++;
-      }
 
-      throw new Error('Se alcanzó el límite de páginas.');
+        // Pequeña pausa para no saturar la API
+        await new Promise(r => setTimeout(r, 300));
+      }
     }catch(e){
       if(sociosData.length > 0){
-        if(statusEl) statusEl.innerHTML = `⚠️ No se pudo sincronizar — mostrando datos guardados. <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Reintentar</button>`;
+        if(statusEl) statusEl.innerHTML = `⚠️ Sync interrumpida — mostrando datos guardados. <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Reintentar</button>`;
       } else {
         if(statusEl) statusEl.innerHTML = `Sin conexión con Global Fan. <button class="doc-upload-btn" onclick="sincronizarGlobalFan(true)">Reintentar</button>`;
         document.getElementById('socios-upload-manual').style.display = 'flex';
