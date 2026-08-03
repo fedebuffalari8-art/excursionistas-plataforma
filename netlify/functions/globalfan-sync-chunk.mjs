@@ -79,56 +79,39 @@ function mapSocio(s) {
   };
 }
 
-function calcStats(socios) {
-  const stats = { total: socios.length, alDia: 0, morosos: 0, bajas: 0, porMembresia: {} };
-  socios.forEach(s => {
-    if (s.estado === 'Al día') stats.alDia++;
-    if (s.estado === 'Moroso') stats.morosos++;
-    if (['Baja','Suspendido'].includes(s.estado)) stats.bajas++;
-    const cat = s.categoria || '—';
-    if (!stats.porMembresia[cat]) stats.porMembresia[cat] = { total:0, alDia:0, morosos:0 };
-    stats.porMembresia[cat].total++;
-    if (s.estado === 'Al día') stats.porMembresia[cat].alDia++;
-    if (s.estado === 'Moroso') stats.porMembresia[cat].morosos++;
-  });
-  return stats;
-}
-
 export default async (request) => {
   const store = getStore('globalfan-data');
   const url = new URL(request.url);
-  const cursor    = url.searchParams.get('cursor') || null;
-  const reset     = url.searchParams.get('reset') === '1';
-  const getResult = url.searchParams.get('getResult') === '1';
+  const cursor  = url.searchParams.get('cursor') || null;
+  const noAccum = url.searchParams.get('noAccum') === '1';
 
   try {
-    if (getResult) {
-      const data = await store.get('last-sync', { type: 'json' }).catch(() => null);
-      return Response.json({ ok: true, socios: data?.socios || [], syncedAt: data?.syncedAt });
-    }
-
     const creds = await getToken(store);
-
-    if (reset) {
-      await store.delete('sync-accumulated').catch(() => {});
-      return Response.json({ ok: true, reset: true });
-    }
 
     const vars = cursor ? { first: 100, after: cursor } : { first: 100 };
     const data = await gqlFetch(FANS_QUERY, vars, creds);
     if (data.errors || !data.data?.fans) throw new Error('Error: ' + JSON.stringify(data.errors || data).slice(0, 300));
 
     const { nodes, pageInfo } = data.data.fans;
-    const nuevos = (nodes || []).map(mapSocio);
+    const socios = (nodes || []).map(mapSocio);
+    const hasMore = pageInfo?.hasNextPage && pageInfo?.endCursor;
+
+    if (noAccum) {
+      return Response.json({
+        ok: true,
+        socios,
+        done: !hasMore,
+        nextCursor: hasMore ? pageInfo.endCursor : null,
+      });
+    }
 
     const prevRaw = await store.get('sync-accumulated', { type: 'json' }).catch(() => null);
     const prevSocios = prevRaw?.socios || [];
-    const acumulados = [...prevSocios, ...nuevos];
-    const hasMore = pageInfo?.hasNextPage && pageInfo?.endCursor;
+    const acumulados = [...prevSocios, ...socios];
 
     if (!hasMore) {
       const syncedAt = new Date().toISOString();
-      await store.setJSON('last-sync', { socios: acumulados, syncedAt, statsLocales: calcStats(acumulados) });
+      await store.setJSON('last-sync', { socios: acumulados, syncedAt });
       await store.delete('sync-accumulated').catch(() => {});
       return Response.json({ ok: true, done: true, total: acumulados.length, syncedAt });
     }
