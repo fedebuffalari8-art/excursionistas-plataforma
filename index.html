@@ -911,15 +911,56 @@
 
     <!-- FINANZAS -->
     <section class="panel" id="panel-finanzas">
-      <div class="grid grid-2">
-        <div class="card hoverable">
-          <h3>Ingresos últimos 6 meses</h3>
-          <div id="chart-ingresos-finanzas"></div>
+      <div class="card hoverable" id="finanzas-upload-card" style="margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h3 style="margin-bottom:4px;">Estado de cuenta bancaria</h3>
+            <div style="font-size:12.5px; color:var(--text-faint);" id="finanzas-upload-status">Sin datos cargados todavía.</div>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button class="btn gold" onclick="document.getElementById('finanzas-csv-input').click()">📤 Cargar movimientos (CSV)</button>
+            <button class="btn ghost" onclick="limpiarFinanzas()" id="finanzas-clear-btn" style="display:none;">🗑 Borrar</button>
+            <input type="file" id="finanzas-csv-input" accept=".csv" style="display:none;" onchange="importarMovimientosCSV(event)">
+          </div>
         </div>
-        <div class="card hoverable">
-          <h3>Composición del ingreso (junio)</h3>
-          <div id="donut-ingresos-2"></div>
-          <p style="font-size:12.5px; color:var(--text-soft); margin-top:14px; line-height:1.5;">Cuotas y entradas provienen de Access Fan. Sponsors se registra manualmente hasta integrar facturación.</p>
+        <p style="font-size:11.5px; color:var(--text-faint); margin-top:10px; line-height:1.5;">
+          Subí el extracto de movimientos del banco (CSV) cada vez que el tesorero lo tenga listo. Cada carga se combina con lo anterior, sin duplicar. La clasificación por rubro es automática y aproximada — revisá la tabla de "sin clasificar" de más abajo para ajustar criterio con contaduría.
+        </p>
+      </div>
+
+      <div id="finanzas-content" style="display:none;">
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-bottom:18px;" id="fin-kpis">
+          <div class="card kpi hoverable"><h3>Saldo actual</h3><div class="num" id="fk-saldo">—</div></div>
+          <div class="card kpi hoverable"><h3>Ingresos (período)</h3><div class="num" id="fk-ingresos">—</div></div>
+          <div class="card kpi hoverable"><h3>Egresos (período)</h3><div class="num" id="fk-egresos">—</div></div>
+          <div class="card kpi hoverable"><h3>Resultado neto</h3><div class="num" id="fk-neto">—</div></div>
+        </div>
+
+        <div class="card hoverable" style="margin-bottom:18px;">
+          <h3>Ingresos vs Egresos por mes</h3>
+          <div id="fin-chart-mensual"></div>
+        </div>
+
+        <div class="grid grid-2" style="margin-bottom:18px;">
+          <div class="card hoverable">
+            <h3>Egresos por rubro</h3>
+            <div id="fin-donut-egresos"></div>
+          </div>
+          <div class="card hoverable">
+            <h3>Ingresos por rubro</h3>
+            <div id="fin-donut-ingresos"></div>
+          </div>
+        </div>
+
+        <div class="card hoverable" id="fin-sinclasificar-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <h3 style="margin-bottom:0;">Movimientos sin clasificar</h3>
+            <span style="font-size:12px; color:var(--text-faint);" id="fin-sinclasificar-sub"></span>
+          </div>
+          <div class="table-scroll"><table>
+            <thead><tr><th>Concepto</th><th>Movimientos</th><th style="text-align:right;">Monto total</th></tr></thead>
+            <tbody id="fin-sinclasificar-body"></tbody>
+          </table></div>
         </div>
       </div>
     </section>
@@ -1455,6 +1496,7 @@
     loadInstagramData();
     loadXData();
     initSocios();
+    initFinanzas();
   }
 
   function startHeartbeat(username){
@@ -2196,6 +2238,217 @@
     try{ localStorage.removeItem(SOCIOS_KEY); }catch(e){}
     renderSociosPanel(null);
     showToast('Caché de socios eliminado.');
+  }
+
+  /* ============ MÓDULO FINANZAS ============ */
+  /* Clasificación automática de movimientos bancarios contra el Mapa de Cuentas del club.
+     Es "mejor esfuerzo": lo que no matchea ninguna regla queda en "Sin clasificar" para
+     revisión de tesorería en vez de inventar un rubro. Los pagos "-HAB-" al plantel se
+     detectan cruzando el CUIT de la transferencia contra los DNI reales del array `plantel`
+     (definido más abajo en este mismo script). */
+
+  const FINANZAS_KEY = 'finanzas_movimientos';
+  let finanzasMovs = [];
+
+  const FINANZAS_REGLAS = [
+    [/impuesto|percepcion|iva[\s-]|ley 25\.413/, 'EGRESOS', 'CLUB · Impuestos y Tasas'],
+    [/comision|com\.\s|mantenimiento cuenta/,   'EGRESOS', 'CLUB · Varios'],
+    [/\bseguro\b/,                               'EGRESOS', 'CLUB · Seguros'],
+    [/edenor|edesur|metrogas|aysa|telefon|internet\b/, 'EGRESOS', 'CLUB · Servicios Públicos'],
+    [/arbitro|federacion/,                       'EGRESOS', 'CLUB · Partidos'],
+    [/honorario/,                                'EGRESOS', 'CLUB · Honorarios'],
+    [/public|marketing/,                         'EGRESOS', 'CLUB · Comunicación y Marketing'],
+    [/juicio|abogado/,                           'EGRESOS', 'CLUB · Legales, Juicios y Acuerdos'],
+    [/seguridad|vigilancia/,                     'EGRESOS', 'CLUB · Seguridad'],
+    [/limpieza/,                                 'EGRESOS', 'CLUB · Limpieza'],
+    [/medic|clinica|sanatorio|kinesio/,          'EGRESOS', 'CLUB · Servicios Médicos'],
+    [/alquiler/,                                 null,      'FUTBOL · Alquileres'],
+    [/globalfan|global fan|access ?fan|cuota social/, 'INGRESOS', 'CLUB · Cuotas Sociales'],
+    [/concesion|buffet/,                         'INGRESOS', 'CLUB · Concesiones'],
+    [/fondo comun de inversion/,                 null,      'CLUB · Movimientos Financieros'],
+    [/asoc del futbol argent|\bafa\b/,           null,      'FUTBOL · AFA'],
+  ];
+
+  function normalizarTexto(s){
+    return (s||'').toString().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  }
+
+  function matchPlantel(concepto){
+    // Compara los dígitos largos de la transferencia (el CUIT embebido) contra los DNI reales del plantel.
+    try{
+      const digits = (concepto.match(/\d{6,}/g) || []).join(' ');
+      return (typeof plantel !== 'undefined') && plantel.some(j => digits.includes(j.dni.replace(/\./g,'')));
+    }catch(e){ return false; }
+  }
+
+  function clasificarMovimiento(concepto, debito, credito){
+    const c = normalizarTexto(concepto);
+    if(/-hab-/.test(c)){
+      if(matchPlantel(concepto)) return { tipo:'EGRESOS', rubro:'FUTBOL · Plantel Profesional' };
+      return { tipo:'EGRESOS', rubro:'CLUB · Sueldos y Cargas Sociales' };
+    }
+    for(const [re, tipoFijo, rubro] of FINANZAS_REGLAS){
+      if(re.test(c)){
+        const tipo = tipoFijo || (debito > 0 ? 'EGRESOS' : 'INGRESOS');
+        return { tipo, rubro };
+      }
+    }
+    return { tipo: debito > 0 ? 'EGRESOS' : 'INGRESOS', rubro: 'Sin clasificar' };
+  }
+
+  function initFinanzas(){
+    try{
+      const cached = localStorage.getItem(FINANZAS_KEY);
+      if(cached) finanzasMovs = JSON.parse(cached);
+    }catch(e){ finanzasMovs = []; }
+    renderFinanzas();
+  }
+
+  function importarMovimientosCSV(event){
+    const file = event.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e){
+      const bytes = new Uint8Array(e.target.result);
+      let text;
+      try{ text = new TextDecoder('utf-8', {fatal:true}).decode(bytes); }
+      catch(err){ text = new TextDecoder('iso-8859-1').decode(bytes); } // extractos bancarios AR suelen venir en Latin-1
+      procesarCSVFinanzas(text);
+    };
+    reader.readAsArrayBuffer(file);
+    event.target.value = '';
+  }
+
+  function procesarCSVFinanzas(text){
+    const lines = text.split(/\r?\n/).filter(l => l.trim().length);
+    if(lines.length < 2){ showToast('El archivo está vacío o no tiene el formato esperado.'); return; }
+
+    const nuevos = [];
+    for(let i=1;i<lines.length;i++){ // fila 0 = encabezado
+      const fields = lines[i].split(',');
+      const n = fields.length;
+      if(n < 7) continue;
+      const fecha    = (fields[0]||'').trim();
+      const cod      = (fields[n-1]||'').trim();
+      const saldo    = parseFloat(fields[n-2]) || 0;
+      const credito  = parseFloat(fields[n-3]) || 0;
+      const debito   = parseFloat(fields[n-4]) || 0;
+      const nro      = (fields[n-5]||'').trim();
+      const concepto = fields.slice(1, n-5).join(',').trim();
+      const partes = fecha.split('/');
+      if(!fecha || !concepto || partes.length !== 3) continue;
+      const fechaISO = `${partes[2]}-${partes[1].padStart(2,'0')}-${partes[0].padStart(2,'0')}`;
+      const { tipo, rubro } = clasificarMovimiento(concepto, debito, credito);
+      nuevos.push({ fecha, fechaISO, concepto, nro, debito, credito, saldo, cod, tipo, rubro });
+    }
+
+    if(!nuevos.length){ showToast('No se pudo leer ningún movimiento. Revisá el formato del archivo.'); return; }
+
+    const claveOf = m => `${m.fecha}|${m.concepto}|${m.nro}|${m.saldo}`;
+    const existentes = new Set(finanzasMovs.map(claveOf));
+    let agregados = 0;
+    nuevos.forEach(m => { if(!existentes.has(claveOf(m))){ finanzasMovs.push(m); existentes.add(claveOf(m)); agregados++; } });
+
+    try{ localStorage.setItem(FINANZAS_KEY, JSON.stringify(finanzasMovs)); }catch(e){}
+    renderFinanzas();
+    showToast(agregados > 0
+      ? `✓ ${agregados.toLocaleString('es-AR')} movimientos nuevos cargados (${finanzasMovs.length.toLocaleString('es-AR')} en total).`
+      : 'No había movimientos nuevos — ya estaban todos cargados.');
+  }
+
+  function limpiarFinanzas(){
+    if(!confirm('¿Borrar todos los movimientos financieros cargados?')) return;
+    finanzasMovs = [];
+    try{ localStorage.removeItem(FINANZAS_KEY); }catch(e){}
+    renderFinanzas();
+    showToast('Datos financieros eliminados.');
+  }
+
+  function renderFinanzas(){
+    const tieneData = finanzasMovs.length > 0;
+    document.getElementById('finanzas-content').style.display = tieneData ? 'block' : 'none';
+    document.getElementById('finanzas-clear-btn').style.display = tieneData ? 'inline-flex' : 'none';
+    const statusEl = document.getElementById('finanzas-upload-status');
+
+    if(!tieneData){
+      statusEl.textContent = 'Sin datos cargados todavía. Subí el último extracto para arrancar.';
+      return;
+    }
+
+    const fechas = finanzasMovs.map(m => m.fechaISO).sort();
+    statusEl.innerHTML = `<b>${finanzasMovs.length.toLocaleString('es-AR')}</b> movimientos cargados · período ${fechas[0]} a ${fechas[fechas.length-1]}`;
+
+    const totalDebito = finanzasMovs.reduce((a,m)=>a+m.debito,0);
+    const totalCredito = finanzasMovs.reduce((a,m)=>a+m.credito,0);
+    const neto = totalCredito - totalDebito;
+    const ordenDesc = [...finanzasMovs].sort((a,b)=> b.fechaISO.localeCompare(a.fechaISO));
+    const saldoActual = ordenDesc[0].saldo;
+
+    const money = v => (v < 0 ? '-$' : '$') + Math.round(Math.abs(v)).toLocaleString('es-AR');
+    document.getElementById('fk-saldo').textContent = money(saldoActual);
+    document.getElementById('fk-ingresos').textContent = money(totalCredito);
+    document.getElementById('fk-egresos').textContent = money(totalDebito);
+    const netoEl = document.getElementById('fk-neto');
+    netoEl.textContent = money(neto);
+    netoEl.style.color = neto >= 0 ? '#3B6D11' : '#A32D2D';
+
+    const meses = {};
+    finanzasMovs.forEach(m => {
+      const mes = m.fechaISO.slice(0,7);
+      if(!meses[mes]) meses[mes] = { ingresos:0, egresos:0 };
+      meses[mes].ingresos += m.credito;
+      meses[mes].egresos += m.debito;
+    });
+    const mesesKeys = Object.keys(meses).sort();
+    renderGroupedBarChart('fin-chart-mensual', mesesKeys, mesesKeys.map(k=>meses[k].ingresos), mesesKeys.map(k=>meses[k].egresos));
+
+    const rubrosEgresos = {}, rubrosIngresos = {};
+    finanzasMovs.forEach(m => {
+      if(m.tipo === 'EGRESOS'){ rubrosEgresos[m.rubro] = (rubrosEgresos[m.rubro]||0) + m.debito; }
+      else { rubrosIngresos[m.rubro] = (rubrosIngresos[m.rubro]||0) + m.credito; }
+    });
+    const paleta = ['#02632E','#C0A270','#8C7647','#5E6E63','#C24B3F','#BD8A2E','#0F6E56','#534AB7','#185FA5','#93A199'];
+    const toSegments = obj => Object.entries(obj).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1])
+      .map(([label,value],i)=>({label, value, colorHex: paleta[i%paleta.length]}));
+
+    donut(document.getElementById('fin-donut-egresos'), toSegments(rubrosEgresos));
+    donut(document.getElementById('fin-donut-ingresos'), toSegments(rubrosIngresos));
+
+    const sinClasif = {};
+    finanzasMovs.filter(m => m.rubro === 'Sin clasificar').forEach(m => {
+      if(!sinClasif[m.concepto]) sinClasif[m.concepto] = { count:0, monto:0 };
+      sinClasif[m.concepto].count++;
+      sinClasif[m.concepto].monto += (m.debito + m.credito);
+    });
+    const filas = Object.entries(sinClasif).sort((a,b)=>b[1].monto-a[1].monto).slice(0,30);
+    document.getElementById('fin-sinclasificar-sub').textContent = `${Object.keys(sinClasif).length} conceptos distintos`;
+    document.getElementById('fin-sinclasificar-body').innerHTML = filas.map(([concepto,d]) => `
+      <tr><td>${concepto}</td><td class="mono">${d.count}</td><td class="mono" style="text-align:right;">${money(d.monto)}</td></tr>
+    `).join('') || '<tr><td colspan="3" style="color:var(--text-faint);">Sin movimientos sin clasificar 🎉</td></tr>';
+  }
+
+  function renderGroupedBarChart(containerId, labels, ingresos, egresos){
+    const container = document.getElementById(containerId);
+    const w = 700, h = 220, padL = 10, padR = 10, padB = 24, padT = 10;
+    const plotW = w - padL - padR, plotH = h - padT - padB;
+    const max = Math.max(...ingresos, ...egresos, 1) * 1.1;
+    const n = labels.length || 1;
+    const groupW = plotW / n;
+    const barW = groupW * 0.32;
+    const mesesEs = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
+    let bars = '';
+    labels.forEach((label,i)=>{
+      const cx = padL + i*groupW + groupW/2;
+      const hIng = (ingresos[i]/max) * plotH;
+      const hEgr = (egresos[i]/max) * plotH;
+      bars += `<rect x="${cx-barW-2}" y="${padT+plotH-hIng}" width="${barW}" height="${hIng}" rx="2" fill="#02632E"/>`;
+      bars += `<rect x="${cx+2}" y="${padT+plotH-hEgr}" width="${barW}" height="${hEgr}" rx="2" fill="#C24B3F"/>`;
+      const [,mm] = label.split('-');
+      bars += `<text x="${cx}" y="${h-6}" font-size="10.5" fill="#93A199" text-anchor="middle" font-family="IBM Plex Mono, monospace">${mesesEs[mm]||mm}</text>`;
+    });
+    container.innerHTML = `
+      <svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="xMidYMid meet">${bars}</svg>
+      <div class="legend" style="margin-top:8px;"><span><i style="background:#02632E"></i> Ingresos</span><span><i style="background:#C24B3F"></i> Egresos</span></div>`;
   }
 
   // Parser CSV de respaldo (si la función de Netlify no está disponible)
