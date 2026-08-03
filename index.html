@@ -2157,14 +2157,16 @@
         if(statusEl) statusEl.innerHTML = `🔄 Sincronizando… ${fetched.toLocaleString('es-AR')} socios cargados`;
 
         if(done){
-          // Traemos el resultado final desde el caché de Blobs
-          const finalRes = await fetch('/.netlify/functions/globalfan-sync');
+          // El chunk ya guardó todo en Blobs — mostramos directamente
+          // Traemos el resultado final
+          const finalRes = await fetch('/.netlify/functions/globalfan-sync-chunk?getResult=1');
           const finalData = await finalRes.json();
-          if(!finalData.ok) throw new Error(finalData.error);
+          const socios = finalData.socios || [];
 
-          sociosData = finalData.socios || [];
-          try{ localStorage.setItem(SOCIOS_KEY, JSON.stringify({ socios: sociosData, syncedAt: finalData.syncedAt })); }catch(e){}
-          renderSociosPanel(finalData.syncedAt);
+          sociosData = socios;
+          const syncedAt = new Date().toISOString();
+          try{ localStorage.setItem(SOCIOS_KEY, JSON.stringify({ socios: sociosData, syncedAt })); }catch(e){}
+          renderSociosPanel(syncedAt);
           if(mostrarToast) showToast(`✓ ${sociosData.length.toLocaleString('es-AR')} socios sincronizados desde Global Fan.`);
           return;
         }
