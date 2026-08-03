@@ -2165,6 +2165,16 @@
         paginas++;
       }
 
+      // Si llegamos al límite de páginas pero hay socios, los mostramos igual
+      if(todosLosSocios.length > 0){
+        sociosData = todosLosSocios;
+        const syncedAt = new Date().toISOString();
+        try{ localStorage.setItem(SOCIOS_KEY, JSON.stringify({ socios: sociosData, syncedAt })); }catch(e){}
+        renderSociosPanel(syncedAt);
+        if(mostrarToast) showToast(`✓ ${sociosData.length.toLocaleString('es-AR')} socios actualizados.`);
+      }
+      if(btn){ btn.disabled = false; btn.textContent = '🔄 Sincronizar ahora'; }
+
     }catch(e){
       if(btn){ btn.disabled = false; btn.textContent = '🔄 Sincronizar ahora'; }
       if(sociosData.length > 0){
