@@ -74,7 +74,8 @@ function mapSocio(s) {
     email: s.email || '', telefono: s.phoneNumber || '', dni: s.documentNumber || '',
     categoria: s.membershipName || s.membership?.name || '—', estado: calcEstado(s),
     ultimaCuota: s.membershipCreatedAt ? s.membershipCreatedAt.slice(0,10) : '',
-    activo: s.isActive, membresiaActiva: s.isMembershipActive, puntos: s.points || 0, precio: s.membership?.price || null,
+    activo: s.isActive, membresiaActiva: s.isMembershipActive,
+    puntos: s.points || 0, precio: s.membership?.price || null,
   };
 }
 
@@ -83,7 +84,7 @@ function calcStats(socios) {
   socios.forEach(s => {
     if (s.estado === 'Al día') stats.alDia++;
     if (s.estado === 'Moroso') stats.morosos++;
-    if (s.estado === 'Baja' || s.estado === 'Suspendido') stats.bajas++;
+    if (['Baja','Suspendido'].includes(s.estado)) stats.bajas++;
     const cat = s.categoria || '—';
     if (!stats.porMembresia[cat]) stats.porMembresia[cat] = { total:0, alDia:0, morosos:0 };
     stats.porMembresia[cat].total++;
@@ -96,12 +97,22 @@ function calcStats(socios) {
 export default async (request) => {
   const store = getStore('globalfan-data');
   const url = new URL(request.url);
-  const cursor = url.searchParams.get('cursor') || null;
-  const reset = url.searchParams.get('reset') === '1';
+  const cursor    = url.searchParams.get('cursor') || null;
+  const reset     = url.searchParams.get('reset') === '1';
+  const getResult = url.searchParams.get('getResult') === '1';
 
   try {
+    if (getResult) {
+      const data = await store.get('last-sync', { type: 'json' }).catch(() => null);
+      return Response.json({ ok: true, socios: data?.socios || [], syncedAt: data?.syncedAt });
+    }
+
     const creds = await getToken(store);
-    if (reset) { await store.delete('sync-accumulated').catch(() => {}); return Response.json({ ok: true, reset: true }); }
+
+    if (reset) {
+      await store.delete('sync-accumulated').catch(() => {});
+      return Response.json({ ok: true, reset: true });
+    }
 
     const vars = cursor ? { first: 100, after: cursor } : { first: 100 };
     const data = await gqlFetch(FANS_QUERY, vars, creds);
@@ -124,6 +135,7 @@ export default async (request) => {
 
     await store.setJSON('sync-accumulated', { socios: acumulados });
     return Response.json({ ok: true, done: false, fetched: acumulados.length, nextCursor: pageInfo.endCursor });
+
   } catch(e) {
     return Response.json({ ok: false, error: e.message }, { status: 500 });
   }
