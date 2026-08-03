@@ -2137,7 +2137,7 @@
       let cursor = null;
       let paginas = 0;
 
-      while(paginas < 50){
+      while(paginas < 60){
         const url = cursor
           ? `/.netlify/functions/globalfan-sync-chunk?cursor=${encodeURIComponent(cursor)}&noAccum=1`
           : '/.netlify/functions/globalfan-sync-chunk?noAccum=1';
