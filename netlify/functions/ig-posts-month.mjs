@@ -6,7 +6,7 @@
 
 import { getStore } from '@netlify/blobs';
 
-const GRAPH = 'https://graph.facebook.com/v21.0';
+const GRAPH = 'https://graph.facebook.com/v22.0';
 
 async function graph(url) {
   const res = await fetch(url);
@@ -108,7 +108,7 @@ export default async (request) => {
 
     let reachMes = null;
     try {
-      reachMes = await sumTimeSeries('reach');
+      reachMes = await sumTotalValue('reach');
       if (reachMes === null) debug.reachMes = 'La respuesta no trajo la métrica reach.';
     } catch (e) { debug.reachMes = e.message; }
 
