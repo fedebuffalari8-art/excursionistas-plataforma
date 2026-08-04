@@ -668,14 +668,14 @@
       <div class="grid grid-4" style="margin-bottom:18px;">
         <div class="card kpi hoverable">
           <h3>Socios activos</h3>
-          <div class="num" data-count="3842">0</div>
-          <div class="delta up">▲ 1,2% vs. mes anterior</div>
+          <div class="num" id="resumen-socios-activos">—</div>
+          <div class="delta" id="resumen-socios-delta" style="color:var(--text-faint);">Sin datos todavía</div>
         </div>
         <div class="card kpi hoverable">
           <h3>Morosidad</h3>
           <div class="gauge-wrap">
             <div id="gauge-morosidad"></div>
-            <div class="gauge-label">612 socios<br><b>con cuota vencida</b></div>
+            <div class="gauge-label" id="resumen-morosidad-label">Sin datos<br><b>todavía</b></div>
           </div>
         </div>
         <div class="card kpi hoverable">
@@ -971,7 +971,7 @@
             <span style="font-size:12px; color:var(--text-faint);" id="fin-sinclasificar-sub"></span>
           </div>
           <div class="table-scroll"><table>
-            <thead><tr><th>Concepto</th><th>Movimientos</th><th style="text-align:right;">Monto total</th></tr></thead>
+            <thead><tr><th>Concepto</th><th>Movimientos</th><th style="text-align:right;">Monto total</th><th style="min-width:220px;">Clasificar</th></tr></thead>
             <tbody id="fin-sinclasificar-body"></tbody>
           </table></div>
         </div>
@@ -2173,7 +2173,32 @@
   let sociosFiltroEstado = 'todos';
   let sociosFiltroCategoria = 'todas';
 
-  async function initSocios(){
+  function actualizarResumenSocios(total, alDia, morosos, bajas){
+    const activosEl = document.getElementById('resumen-socios-activos');
+    const deltaEl = document.getElementById('resumen-socios-delta');
+    const gaugeEl = document.getElementById('gauge-morosidad');
+    const labelEl = document.getElementById('resumen-morosidad-label');
+    if(!activosEl) return;
+
+    if(total === 0){
+      activosEl.textContent = '—';
+      deltaEl.textContent = 'Sin datos todavía';
+      if(labelEl) labelEl.innerHTML = 'Sin datos<br><b>todavía</b>';
+      if(gaugeEl) radialGauge(gaugeEl, 0, '#BD8A2E', 64);
+      return;
+    }
+
+    bajas = bajas || 0;
+    const activos = total - bajas;
+    activosEl.textContent = activos.toLocaleString('es-AR');
+    deltaEl.textContent = `${total.toLocaleString('es-AR')} en el padrón total`;
+
+    const pctMorosidad = Math.round((morosos / total) * 100);
+    if(gaugeEl) radialGauge(gaugeEl, pctMorosidad, '#BD8A2E', 64);
+    if(labelEl) labelEl.innerHTML = `${morosos.toLocaleString('es-AR')} socios<br><b>con cuota vencida</b>`;
+  }
+
+  function initSocios(){
     // Primero mostramos lo que haya guardado en localStorage (respuesta inmediata)
     try{
       const cached = localStorage.getItem(SOCIOS_KEY);
@@ -2373,7 +2398,36 @@
      (definido más abajo en este mismo script). */
 
   const FINANZAS_KEY = 'finanzas_movimientos';
+  const FINANZAS_MANUAL_KEY = 'finanzas_reglas_manuales';
   let finanzasMovs = [];
+  let finanzasReglasManuales = {}; // { conceptoNormalizado: { tipo, rubro } }
+
+  // Catálogo oficial — EXC_Mapa_de_Cuentas.xlsx
+  const MAPA_CUENTAS = [
+    ['EGRESOS','CLUB','Varios'],
+    ['EGRESOS','CLUB','Seguros'],
+    ['EGRESOS','CLUB','Servicios Públicos'],
+    ['EGRESOS','CLUB','Partidos'],
+    ['EGRESOS','CLUB','Sueldos y Cargas Sociales'],
+    ['EGRESOS','CLUB','Impuestos y Tasas'],
+    ['EGRESOS','CLUB','Movilidad y Viáticos'],
+    ['EGRESOS','CLUB','Honorarios'],
+    ['EGRESOS','CLUB','Gastos de Comunicación y Marketing'],
+    ['EGRESOS','CLUB','Legales, Juicios y Acuerdos'],
+    ['EGRESOS','CLUB','Seguridad'],
+    ['EGRESOS','CLUB','Mantenimiento'],
+    ['EGRESOS','CLUB','Servicios Médicos'],
+    ['EGRESOS','CLUB','Limpieza'],
+    ['EGRESOS','FUTBOL','Plantel Profesional'],
+    ['EGRESOS','FUTBOL','Alquileres'],
+    ['INGRESOS','FUTBOL','Transferencias'],
+    ['INGRESOS','FUTBOL','Publicidad'],
+    ['INGRESOS','FUTBOL','Derechos de TV'],
+    ['INGRESOS','CLUB','Concesiones'],
+    ['INGRESOS','CLUB','Cuotas Sociales'],
+    ['INGRESOS','CLUB','Recupero de Gastos'],
+    ['INGRESOS','CLUB','Alquileres y Eventos'],
+  ];
 
   const FINANZAS_REGLAS = [
     [/impuesto|percepcion|iva[\s-]|ley 25\.413/, 'EGRESOS', 'CLUB · Impuestos y Tasas'],
@@ -2408,6 +2462,11 @@
 
   function clasificarMovimiento(concepto, debito, credito){
     const c = normalizarTexto(concepto);
+
+    // 1) Si el tesorero ya clasificó manualmente este concepto exacto, gana esa regla.
+    if(finanzasReglasManuales[c]) return finanzasReglasManuales[c];
+
+    // 2) Pagos "-HAB-": cruzamos contra el plantel real.
     if(/-hab-/.test(c)){
       if(matchPlantel(concepto)) return { tipo:'EGRESOS', rubro:'FUTBOL · Plantel Profesional' };
       return { tipo:'EGRESOS', rubro:'CLUB · Sueldos y Cargas Sociales' };
@@ -2421,7 +2480,36 @@
     return { tipo: debito > 0 ? 'EGRESOS' : 'INGRESOS', rubro: 'Sin clasificar' };
   }
 
+  function cargarReglasManuales(){
+    try{
+      const raw = localStorage.getItem(FINANZAS_MANUAL_KEY);
+      finanzasReglasManuales = raw ? JSON.parse(raw) : {};
+    }catch(e){ finanzasReglasManuales = {}; }
+  }
+
+  function clasificarManualmente(conceptoNormalizado, valor){
+    if(!valor){ // "-- Sin clasificar --" elegido de nuevo: borramos la regla manual
+      delete finanzasReglasManuales[conceptoNormalizado];
+    } else {
+      const [tipo, rubro] = valor.split('||');
+      finanzasReglasManuales[conceptoNormalizado] = { tipo, rubro };
+    }
+    try{ localStorage.setItem(FINANZAS_MANUAL_KEY, JSON.stringify(finanzasReglasManuales)); }catch(e){}
+    reclasificarTodo();
+  }
+
+  function reclasificarTodo(){
+    finanzasMovs.forEach(m => {
+      const { tipo, rubro } = clasificarMovimiento(m.concepto, m.debito, m.credito);
+      m.tipo = tipo; m.rubro = rubro;
+    });
+    try{ localStorage.setItem(FINANZAS_KEY, JSON.stringify(finanzasMovs)); }catch(e){}
+    renderFinanzas();
+    showToast('✓ Clasificación actualizada.');
+  }
+
   function initFinanzas(){
+    cargarReglasManuales();
     try{
       const cached = localStorage.getItem(FINANZAS_KEY);
       if(cached) finanzasMovs = JSON.parse(cached);
@@ -2547,9 +2635,34 @@
     });
     const filas = Object.entries(sinClasif).sort((a,b)=>b[1].monto-a[1].monto).slice(0,30);
     document.getElementById('fin-sinclasificar-sub').textContent = `${Object.keys(sinClasif).length} conceptos distintos`;
-    document.getElementById('fin-sinclasificar-body').innerHTML = filas.map(([concepto,d]) => `
-      <tr><td>${concepto}</td><td class="mono">${d.count}</td><td class="mono" style="text-align:right;">${money(d.monto)}</td></tr>
-    `).join('') || '<tr><td colspan="3" style="color:var(--text-faint);">Sin movimientos sin clasificar 🎉</td></tr>';
+    document.getElementById('fin-sinclasificar-body').innerHTML = filas.map(([concepto,d], i) => `
+      <tr>
+        <td>${escapeHTML(concepto)}</td>
+        <td class="mono">${d.count}</td>
+        <td class="mono" style="text-align:right;">${money(d.monto)}</td>
+        <td>
+          <select data-idx="${i}" onchange="clasificarManualmente(FIN_SINCLASIF_CONCEPTOS[this.dataset.idx], this.value)" style="width:100%; font-size:12.5px; padding:5px 6px; border-radius:6px; border:1px solid var(--border); font-family:var(--font-body);">
+            <option value="">— Sin clasificar —</option>
+            ${opcionesRubroHTML()}
+          </select>
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="4" style="color:var(--text-faint);">Sin movimientos sin clasificar 🎉</td></tr>';
+    window.FIN_SINCLASIF_CONCEPTOS = filas.map(([concepto]) => normalizarTexto(concepto));
+  }
+
+  function opcionesRubroHTML(){
+    const grupos = { EGRESOS: [], INGRESOS: [] };
+    MAPA_CUENTAS.forEach(([tipo, grupo, nombre]) => {
+      grupos[tipo].push(`<option value="${tipo}||${grupo} · ${nombre}">${grupo} · ${nombre}</option>`);
+    });
+    return `<optgroup label="Egresos">${grupos.EGRESOS.join('')}</optgroup><optgroup label="Ingresos">${grupos.INGRESOS.join('')}</optgroup>`;
+  }
+
+  function escapeHTML(s){
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
   }
 
   function renderGroupedBarChart(containerId, labels, ingresos, egresos){
@@ -2661,6 +2774,7 @@
       ['sk-total','sk-aldía','sk-morosos','sk-bajas'].forEach(id => document.getElementById(id).textContent = '—');
       document.getElementById('sk-aldía-pct').textContent = '';
       document.getElementById('sk-morosos-pct').textContent = '';
+      actualizarResumenSocios(0, 0, 0);
       return;
     }
 
@@ -2676,6 +2790,8 @@
     document.getElementById('sk-morosos').textContent = morosos.toLocaleString('es-AR');
     document.getElementById('sk-morosos-pct').textContent = `▼ ${Math.round(morosos/total*100)}% del padrón (${Math.round(morosos/total*100)}% con deuda)`;
     document.getElementById('sk-bajas').textContent = bajas.toLocaleString('es-AR');
+
+    actualizarResumenSocios(total, alDia, morosos, bajas);
 
     if(syncedAt){
       const fecha = new Date(syncedAt).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
@@ -4048,8 +4164,7 @@ Si hay noticias recientes, incluilas. Si hay más de un jugador con ese nombre, 
     ];
     donut(document.getElementById('donut-ingresos'), segs, {size:130, stroke:16});
 
-    radialGauge(document.getElementById('gauge-morosidad'), 14, '#BD8A2E', 64);
-
+    
     sparkline(document.getElementById('spark-1'), [120,138,150,162,171,184], '#02632E');
     sparkline(document.getElementById('spark-2'), [70,74,69,80,88,96], '#C0A270');
     sparkline(document.getElementById('spark-3'), [30,33,29,36,38,41], '#7C8FC4');
