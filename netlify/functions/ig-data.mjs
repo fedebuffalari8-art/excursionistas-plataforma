@@ -168,15 +168,13 @@ export default async (request) => {
       profileViewsTotal = sumMetric(pv.data, 'profile_views');
     } catch (e) {}
     try {
-      // "views" reemplazó a "impressions" en la API de Meta
-      const v = await graph(`${GRAPH}/${tokens.igUserId}/insights?metric=views&period=day&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`);
-      impressionsTotal = sumMetric(v.data, 'views');
-    } catch (e) {
-      try {
-        const imp = await graph(`${GRAPH}/${tokens.igUserId}/insights?metric=impressions&period=day&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`);
-        impressionsTotal = sumMetric(imp.data, 'impressions');
-      } catch (e2) {}
-    }
+      // "views" reemplazó a "impressions" (deprecada) y Meta exige pedirla
+      // con metric_type=total_value en vez de period=day — la respuesta
+      // viene como total_value.value, no como un array de values por día.
+      const v = await graph(`${GRAPH}/${tokens.igUserId}/insights?metric=views&metric_type=total_value&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`);
+      const found = v.data?.find(d => d.name === 'views');
+      impressionsTotal = found?.total_value?.value ?? null;
+    } catch (e) {}
 
     const audience = await fetchAudience(tokens.igUserId, tokens.pageAccessToken);
     const competitors = await fetchCompetitors(tokens.igUserId, tokens.pageAccessToken);
