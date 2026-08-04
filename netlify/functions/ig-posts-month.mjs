@@ -59,54 +59,66 @@ export default async (request) => {
 
     const debug = {};
 
+    // Meta no deja pedir más de 30 días (2.592.000s) en una sola consulta
+    // period=day, y los meses de 31 días se pasan por 1 día. Partimos el
+    // rango en ventanas de máximo 30 días y sumamos.
+    const MAX_RANGE = 30 * 24 * 60 * 60;
+    function splitRange(since, until) {
+      const chunks = [];
+      let s = since;
+      while (s < until) {
+        const e = Math.min(s + MAX_RANGE, until);
+        chunks.push([s, e]);
+        s = e;
+      }
+      return chunks;
+    }
+
+    async function sumTimeSeries(metric) {
+      let total = 0;
+      let huboDatos = false;
+      for (const [s, e] of splitRange(monthStart, monthEnd)) {
+        const res = await graph(
+          `${GRAPH}/${tokens.igUserId}/insights?metric=${metric}&period=day&since=${s}&until=${e}&access_token=${tokens.pageAccessToken}`
+        );
+        const found = res.data?.find(d => d.name === metric);
+        if (found?.values) { total += found.values.reduce((a, v) => a + (v.value || 0), 0); huboDatos = true; }
+      }
+      return huboDatos ? total : null;
+    }
+
+    async function sumTotalValue(metric) {
+      let total = 0;
+      let huboDatos = false;
+      for (const [s, e] of splitRange(monthStart, monthEnd)) {
+        const res = await graph(
+          `${GRAPH}/${tokens.igUserId}/insights?metric=${metric}&metric_type=total_value&since=${s}&until=${e}&access_token=${tokens.pageAccessToken}`
+        );
+        const found = res.data?.find(d => d.name === metric);
+        if (found?.total_value?.value != null) { total += found.total_value.value; huboDatos = true; }
+      }
+      return huboDatos ? total : null;
+    }
+
     let newFollowers = null;
     try {
-      const deltaRes = await graph(
-        `${GRAPH}/${tokens.igUserId}/insights?metric=follower_count&period=day&since=${monthStart}&until=${monthEnd}&access_token=${tokens.pageAccessToken}`
-      );
-      const metric = deltaRes.data?.find(d => d.name === 'follower_count');
-      if (metric?.values) {
-        newFollowers = metric.values.reduce((a, v) => a + (v.value || 0), 0);
-      } else {
-        debug.newFollowers = 'La respuesta no trajo la métrica follower_count.';
-      }
+      newFollowers = await sumTimeSeries('follower_count');
+      if (newFollowers === null) debug.newFollowers = 'La respuesta no trajo la métrica follower_count.';
     } catch (e) { debug.newFollowers = e.message; }
 
-    // Reach del mes
     let reachMes = null;
     try {
-      const reachRes = await graph(
-        `${GRAPH}/${tokens.igUserId}/insights?metric=reach&period=day&since=${monthStart}&until=${monthEnd}&access_token=${tokens.pageAccessToken}`
-      );
-      const metric = reachRes.data?.find(d => d.name === 'reach');
-      if (metric?.values) reachMes = metric.values.reduce((a, v) => a + (v.value || 0), 0);
-      else debug.reachMes = 'La respuesta no trajo la métrica reach.';
+      reachMes = await sumTimeSeries('reach');
+      if (reachMes === null) debug.reachMes = 'La respuesta no trajo la métrica reach.';
     } catch (e) { debug.reachMes = e.message; }
 
-    // Impresiones del mes. Meta deprecó la métrica "impressions" a nivel
-    // cuenta y la reemplazó por "views" — probamos "views" primero y caemos
-    // a "impressions" por si la cuenta todavía la tiene habilitada.
+    // "views" reemplazó a "impressions" (deprecada por Meta) y se pide
+    // con metric_type=total_value en vez de la partición por día.
     let impressionsMes = null;
     try {
-      const viewsRes = await graph(
-        `${GRAPH}/${tokens.igUserId}/insights?metric=views&period=day&since=${monthStart}&until=${monthEnd}&access_token=${tokens.pageAccessToken}`
-      );
-      const m = viewsRes.data?.find(d => d.name === 'views');
-      if (m?.values) impressionsMes = m.values.reduce((a, v) => a + (v.value || 0), 0);
-      else debug.impressionsMes = 'La respuesta no trajo la métrica views.';
-    } catch (e) {
-      debug.impressionsMes = `views: ${e.message}`;
-      try {
-        const impRes = await graph(
-          `${GRAPH}/${tokens.igUserId}/insights?metric=impressions&period=day&since=${monthStart}&until=${monthEnd}&access_token=${tokens.pageAccessToken}`
-        );
-        const m = impRes.data?.find(d => d.name === 'impressions');
-        if (m?.values) { impressionsMes = m.values.reduce((a, v) => a + (v.value || 0), 0); delete debug.impressionsMes; }
-        else debug.impressionsMes += ` | impressions: sin datos.`;
-      } catch (e2) {
-        debug.impressionsMes += ` | impressions: ${e2.message}`;
-      }
-    }
+      impressionsMes = await sumTotalValue('views');
+      if (impressionsMes === null) debug.impressionsMes = 'La respuesta no trajo la métrica views.';
+    } catch (e) { debug.impressionsMes = e.message; }
 
     return Response.json({ posts: allPosts, newFollowers, reachMes, impressionsMes, _debug: Object.keys(debug).length ? debug : undefined });
   } catch (e) {
