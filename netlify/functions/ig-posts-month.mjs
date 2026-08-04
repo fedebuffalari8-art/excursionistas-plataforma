@@ -92,7 +92,7 @@ export default async (request) => {
       let huboDatos = false;
       for (const [s, e] of splitRange(monthStart, monthEnd)) {
         const res = await graph(
-          `${GRAPH}/${tokens.igUserId}/insights?metric=${metric}&metric_type=total_value&since=${s}&until=${e}&access_token=${tokens.pageAccessToken}`
+          `${GRAPH}/${tokens.igUserId}/insights?metric=${metric}&metric_type=total_value&period=day&since=${s}&until=${e}&access_token=${tokens.pageAccessToken}`
         );
         const found = res.data?.find(d => d.name === metric);
         if (found?.total_value?.value != null) { total += found.total_value.value; huboDatos = true; }
@@ -104,7 +104,25 @@ export default async (request) => {
     try {
       newFollowers = await sumTimeSeries('follower_count');
       if (newFollowers === null) debug.newFollowers = 'La respuesta no trajo la métrica follower_count.';
-    } catch (e) { debug.newFollowers = e.message; }
+    } catch (e) {
+      // Meta solo deja consultar follower_count de los últimos 30 días —
+      // para meses ya cerrados usamos nuestro propio historial diario
+      // (guardado en ig-data.mjs cada vez que alguien abre el panel de Redes).
+      debug.newFollowers = e.message;
+      try {
+        const history = (await store.get('history', { type: 'json' })) || [];
+        const monthEndISO = new Date((monthEnd - 1) * 1000).toISOString().slice(0, 10);
+        const monthStartISO = new Date(monthStart * 1000).toISOString().slice(0, 10);
+        const antes = [...history].filter(h => h.date < monthStartISO).sort((a, b) => a.date < b.date ? 1 : -1)[0];
+        const ultimo = [...history].filter(h => h.date <= monthEndISO).sort((a, b) => a.date < b.date ? 1 : -1)[0];
+        if (antes && ultimo && ultimo.date > antes.date) {
+          newFollowers = ultimo.followers_count - antes.followers_count;
+          delete debug.newFollowers;
+        } else {
+          debug.newFollowers += ' Tampoco hay suficiente historial propio guardado para ese rango todavía.';
+        }
+      } catch (e2) { /* nos quedamos con el mensaje de arriba */ }
+    }
 
     let reachMes = null;
     try {
