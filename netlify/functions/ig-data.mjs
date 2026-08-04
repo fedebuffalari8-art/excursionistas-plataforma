@@ -153,16 +153,30 @@ export default async (request) => {
     let reachTotal = null;
     let impressionsTotal = null;
     let profileViewsTotal = null;
+    const until = Math.floor(Date.now() / 1000);
+    const since = until - 30 * 24 * 60 * 60;
+
+    // Separadas en llamadas individuales: si Meta deprecó o rechaza una
+    // métrica, antes tumbaba TODA la consulta combinada y las otras dos
+    // quedaban en null también sin necesidad.
     try {
-      const until = Math.floor(Date.now() / 1000);
-      const since = until - 30 * 24 * 60 * 60;
-      const insights = await graph(
-        `${GRAPH}/${tokens.igUserId}/insights?metric=reach,impressions,profile_views&period=day&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`
-      );
-      reachTotal = sumMetric(insights.data, 'reach');
-      impressionsTotal = sumMetric(insights.data, 'impressions');
-      profileViewsTotal = sumMetric(insights.data, 'profile_views');
+      const r = await graph(`${GRAPH}/${tokens.igUserId}/insights?metric=reach&period=day&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`);
+      reachTotal = sumMetric(r.data, 'reach');
     } catch (e) {}
+    try {
+      const pv = await graph(`${GRAPH}/${tokens.igUserId}/insights?metric=profile_views&period=day&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`);
+      profileViewsTotal = sumMetric(pv.data, 'profile_views');
+    } catch (e) {}
+    try {
+      // "views" reemplazó a "impressions" en la API de Meta
+      const v = await graph(`${GRAPH}/${tokens.igUserId}/insights?metric=views&period=day&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`);
+      impressionsTotal = sumMetric(v.data, 'views');
+    } catch (e) {
+      try {
+        const imp = await graph(`${GRAPH}/${tokens.igUserId}/insights?metric=impressions&period=day&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`);
+        impressionsTotal = sumMetric(imp.data, 'impressions');
+      } catch (e2) {}
+    }
 
     const audience = await fetchAudience(tokens.igUserId, tokens.pageAccessToken);
     const competitors = await fetchCompetitors(tokens.igUserId, tokens.pageAccessToken);
