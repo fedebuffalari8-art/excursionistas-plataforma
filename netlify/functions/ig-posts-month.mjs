@@ -57,6 +57,8 @@ export default async (request) => {
     const monthStart = Math.floor(new Date(`${y}-${m}-01T00:00:00Z`).getTime() / 1000);
     const monthEnd = Math.floor(new Date(`${y}-${String(parseInt(m)+1).padStart(2,'0')}-01T00:00:00Z`).getTime() / 1000);
 
+    const debug = {};
+
     let newFollowers = null;
     try {
       const deltaRes = await graph(
@@ -65,29 +67,48 @@ export default async (request) => {
       const metric = deltaRes.data?.find(d => d.name === 'follower_count');
       if (metric?.values) {
         newFollowers = metric.values.reduce((a, v) => a + (v.value || 0), 0);
+      } else {
+        debug.newFollowers = 'La respuesta no trajo la métrica follower_count.';
       }
-    } catch (e) {}
+    } catch (e) { debug.newFollowers = e.message; }
 
     // Reach del mes
     let reachMes = null;
-    let impressionsMes = null;
     try {
       const reachRes = await graph(
         `${GRAPH}/${tokens.igUserId}/insights?metric=reach&period=day&since=${monthStart}&until=${monthEnd}&access_token=${tokens.pageAccessToken}`
       );
       const metric = reachRes.data?.find(d => d.name === 'reach');
       if (metric?.values) reachMes = metric.values.reduce((a, v) => a + (v.value || 0), 0);
-    } catch (e) {}
+      else debug.reachMes = 'La respuesta no trajo la métrica reach.';
+    } catch (e) { debug.reachMes = e.message; }
 
+    // Impresiones del mes. Meta deprecó la métrica "impressions" a nivel
+    // cuenta y la reemplazó por "views" — probamos "views" primero y caemos
+    // a "impressions" por si la cuenta todavía la tiene habilitada.
+    let impressionsMes = null;
     try {
-      const impRes = await graph(
-        `${GRAPH}/${tokens.igUserId}/insights?metric=impressions&period=day&since=${monthStart}&until=${monthEnd}&access_token=${tokens.pageAccessToken}`
+      const viewsRes = await graph(
+        `${GRAPH}/${tokens.igUserId}/insights?metric=views&period=day&since=${monthStart}&until=${monthEnd}&access_token=${tokens.pageAccessToken}`
       );
-      const m = impRes.data?.find(d => d.name === 'impressions');
+      const m = viewsRes.data?.find(d => d.name === 'views');
       if (m?.values) impressionsMes = m.values.reduce((a, v) => a + (v.value || 0), 0);
-    } catch (e) {}
+      else debug.impressionsMes = 'La respuesta no trajo la métrica views.';
+    } catch (e) {
+      debug.impressionsMes = `views: ${e.message}`;
+      try {
+        const impRes = await graph(
+          `${GRAPH}/${tokens.igUserId}/insights?metric=impressions&period=day&since=${monthStart}&until=${monthEnd}&access_token=${tokens.pageAccessToken}`
+        );
+        const m = impRes.data?.find(d => d.name === 'impressions');
+        if (m?.values) { impressionsMes = m.values.reduce((a, v) => a + (v.value || 0), 0); delete debug.impressionsMes; }
+        else debug.impressionsMes += ` | impressions: sin datos.`;
+      } catch (e2) {
+        debug.impressionsMes += ` | impressions: ${e2.message}`;
+      }
+    }
 
-    return Response.json({ posts: allPosts, newFollowers, reachMes, impressionsMes });
+    return Response.json({ posts: allPosts, newFollowers, reachMes, impressionsMes, _debug: Object.keys(debug).length ? debug : undefined });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
   }
