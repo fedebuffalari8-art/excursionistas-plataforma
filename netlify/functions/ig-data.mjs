@@ -163,7 +163,7 @@ export default async (request) => {
       // metric_type=total_value = cuentas únicas deduplicadas del período.
       // Sumar el "reach" día por día (period=day) cuenta de más a la misma
       // persona si vio contenido en más de un día del mes.
-      const r = await graph(`${GRAPH}/${tokens.igUserId}/insights?metric=reach&metric_type=total_value&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`);
+      const r = await graph(`${GRAPH}/${tokens.igUserId}/insights?metric=reach&metric_type=total_value&period=day&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`);
       const found = r.data?.find(d => d.name === 'reach');
       reachTotal = found?.total_value?.value ?? null;
     } catch (e) {}
@@ -175,7 +175,7 @@ export default async (request) => {
       // "views" reemplazó a "impressions" (deprecada) y Meta exige pedirla
       // con metric_type=total_value en vez de period=day — la respuesta
       // viene como total_value.value, no como un array de values por día.
-      const v = await graph(`${GRAPH}/${tokens.igUserId}/insights?metric=views&metric_type=total_value&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`);
+      const v = await graph(`${GRAPH}/${tokens.igUserId}/insights?metric=views&metric_type=total_value&period=day&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`);
       const found = v.data?.find(d => d.name === 'views');
       impressionsTotal = found?.total_value?.value ?? null;
     } catch (e) {}
