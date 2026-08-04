@@ -965,7 +965,7 @@
           </div>
         </div>
 
-        <div class="card hoverable" id="fin-sinclasificar-card">
+        <div class="card hoverable" id="fin-sinclasificar-card" style="margin-bottom:18px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
             <h3 style="margin-bottom:0;">Movimientos sin clasificar</h3>
             <span style="font-size:12px; color:var(--text-faint);" id="fin-sinclasificar-sub"></span>
@@ -973,6 +973,20 @@
           <div class="table-scroll"><table>
             <thead><tr><th>Concepto</th><th>Movimientos</th><th style="text-align:right;">Monto total</th><th style="min-width:220px;">Clasificar</th></tr></thead>
             <tbody id="fin-sinclasificar-body"></tbody>
+          </table></div>
+        </div>
+
+        <div class="card hoverable" id="fin-manuales-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <h3 style="margin-bottom:0;">Clasificaciones manuales aplicadas</h3>
+            <span style="font-size:12px; color:var(--text-faint);" id="fin-manuales-sub"></span>
+          </div>
+          <p style="font-size:11.5px; color:var(--text-faint); margin-top:-6px; margin-bottom:12px; line-height:1.5;">
+            Conceptos que reclasificaste a mano. Se aplican automáticamente en cada carga nueva del extracto. Podés deshacer cualquiera y vuelve a quedar "sin clasificar".
+          </p>
+          <div class="table-scroll"><table>
+            <thead><tr><th>Concepto</th><th>Rubro asignado</th><th style="width:100px;"></th></tr></thead>
+            <tbody id="fin-manuales-body"></tbody>
           </table></div>
         </div>
       </div>
@@ -1113,7 +1127,7 @@
 
       <div class="integration-note">
         <span class="ic">🔗</span>
-        <div>Comunidad agregada de <b>Instagram, TikTok y X</b>. Instagram ya puede conectarse en vivo (arriba). TikTok y X siguen con datos de ejemplo hasta habilitar sus respectivas APIs.</div>
+        <div>Comunidad agregada de <b>Instagram, TikTok y X</b>. Las tres redes ya pueden conectarse en vivo (tarjetas de abajo) — mientras no estén conectadas, se muestran datos de ejemplo.</div>
       </div>
 
       <div class="grid grid-4" style="margin-bottom:18px;">
@@ -1131,11 +1145,13 @@
           <div id="spark-ig" style="margin-top:10px;"></div>
           <div style="font-size:11px; color:var(--bg-deep); margin-top:8px; font-weight:500;">Ver detalle completo →</div>
         </div>
-        <div class="card hoverable">
+        <div class="card hoverable" id="tiktok-card" onclick="openTikTokDetailModal()" style="cursor:pointer;">
           <h3>🎵 TikTok</h3>
-          <div class="num" data-count="6940">0</div>
-          <div class="delta up">▲ 4,6%</div>
+          <div class="num" data-count="6940" id="tiktok-followers-num">0</div>
+          <div class="delta up" id="tiktok-delta">▲ 4,6%</div>
+          <div style="font-size:10.5px; color:var(--text-faint); margin-top:2px; font-family:var(--font-mono);" id="tiktok-source-tag">● Dato de ejemplo</div>
           <div id="spark-tiktok" style="margin-top:10px;"></div>
+          <div style="font-size:11px; color:var(--bg-deep); margin-top:8px; font-weight:500;">Ver detalle completo →</div>
         </div>
         <div class="card hoverable" id="x-card" onclick="openXDetailModal()" style="cursor:pointer;">
           <h3>✕ X (Twitter)</h3>
@@ -1154,6 +1170,16 @@
             <div id="x-status-text" style="font-size:13px; color:var(--text-soft);">Consultando estado…</div>
           </div>
           <span id="x-status-badge" class="badge" style="background:#EEF1E9; color:var(--text-soft);">Verificando</span>
+        </div>
+      </div>
+
+      <div class="card hoverable" id="tiktok-connect-card" style="margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+          <div>
+            <h3 style="margin-bottom:6px;">🔌 Conexión con TikTok</h3>
+            <div id="tiktok-status-text" style="font-size:13px; color:var(--text-soft);">Consultando estado…</div>
+          </div>
+          <span id="tiktok-status-badge" class="badge" style="background:#EEF1E9; color:var(--text-soft);">Verificando</span>
         </div>
       </div>
 
@@ -1192,6 +1218,19 @@
         </div>
         <div id="x-posts-list"></div>
       </div>
+
+      <div class="card hoverable" id="tiktok-best-post-card" style="display:none; margin-top:18px; margin-bottom:18px;">
+        <h3>🏆 Mejor video — TikTok</h3>
+        <div id="tiktok-best-post-content"></div>
+      </div>
+
+      <div class="card hoverable" id="tiktok-posts-card" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+          <h3>Videos de TikTok — detalle completo</h3>
+          <span id="tiktok-posts-count" style="font-size:11.5px; color:var(--text-faint); font-family:var(--font-mono);"></span>
+        </div>
+        <div id="tiktok-posts-list"></div>
+      </div>
     </section>
 
     <!-- INFORME MENSUAL -->
@@ -1205,6 +1244,7 @@
           </div>
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
             <select id="informe-mes" class="form-input" style="width:auto;">
+              <option value="2026-07">Julio 2026</option>
               <option value="2026-06">Junio 2026</option>
               <option value="2026-05">Mayo 2026</option>
               <option value="2026-04">Abril 2026</option>
@@ -1414,6 +1454,21 @@
     </div>
   </div>
 </div>
+
+<div id="tiktok-modal-overlay" class="ig-modal-overlay" onclick="if(event.target===this) closeTikTokDetailModal()">
+  <div class="ig-modal">
+    <div class="ig-modal-header">
+      <div>
+        <div class="ig-modal-eyebrow">🎵 TikTok — detalle completo</div>
+        <h2 id="tiktok-modal-username">@excursionistas</h2>
+      </div>
+      <button class="ig-modal-close" onclick="closeTikTokDetailModal()">✕</button>
+    </div>
+    <div class="ig-modal-body" id="tiktok-modal-body">
+      <!-- se completa por JS -->
+    </div>
+  </div>
+</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1508,6 +1563,7 @@
     renderPlantel('az');
     loadInstagramData();
     loadXData();
+    loadTikTokData();
     initSocios();
     initFinanzas();
     initFixture();
@@ -1723,6 +1779,7 @@
     const followers = profileData.followers_count;
 
     document.getElementById('ig-followers-num').textContent = followers.toLocaleString('es-AR');
+      document.getElementById('ig-followers-num').dataset.locked = '1';
     document.getElementById('ig-source-tag').textContent = '● Dato real vía API — @' + (profileData.username || '');
     document.getElementById('ig-source-tag').style.color = 'var(--bg-deep)';
 
@@ -2004,6 +2061,7 @@
 
       const followers = data.profile.followers_count;
       document.getElementById('x-followers-num').textContent = followers.toLocaleString('es-AR');
+      document.getElementById('x-followers-num').dataset.locked = '1';
       document.getElementById('x-source-tag').textContent = '● Dato real vía API — @' + (data.profile.username || '');
       document.getElementById('x-source-tag').style.color = 'var(--bg-deep)';
 
@@ -2028,8 +2086,8 @@
   function recalcComunidadTotal(){
     const igNum = lastIgProfile ? lastIgProfile.followers_count : 42291;
     const xNum = lastXProfile ? lastXProfile.followers_count : 3743;
-    const tikTokMock = 6940;
-    document.getElementById('comunidad-total').textContent = (igNum + xNum + tikTokMock).toLocaleString('es-AR');
+    const tikTokNum = lastTikTokProfile ? (lastTikTokProfile.follower_count||0) : 6940;
+    document.getElementById('comunidad-total').textContent = (igNum + xNum + tikTokNum).toLocaleString('es-AR');
     document.getElementById('comunidad-updated').textContent = 'Actualizado ' + new Date().toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
   }
 
@@ -2163,6 +2221,183 @@
           <div><b>${(p.public_metrics?.retweet_count||0).toLocaleString('es-AR')}</b>repost.</div>
         </div>
         <a class="permalink" href="${urlBase}${p.id}" target="_blank" title="Ver en X">↗</a>
+      </div>`).join('');
+  }
+
+  /* ============ CONEXIÓN CON TIKTOK (vía funciones de Netlify) ============ */
+  // Mismo patrón que Instagram y X: el navegador nunca ve el token, solo
+  // le pregunta a /.netlify/functions/tiktok-data, que habla con la API
+  // de TikTok del lado del servidor. Si todavía no está conectada, se
+  // quedan los datos de ejemplo, sin romper nada.
+
+  const TIKTOK_DATA_ENDPOINT = '/.netlify/functions/tiktok-data';
+
+  let lastTikTokProfile = null;
+  let lastTikTokVideos = null;
+  let lastTikTokHistory = [];
+
+  async function loadTikTokData(){
+    const statusEl = document.getElementById('tiktok-status-text');
+    const badge = document.getElementById('tiktok-status-badge');
+
+    try{
+      const res = await fetch(TIKTOK_DATA_ENDPOINT);
+      const data = await res.json();
+
+      if(!data.connected){
+        statusEl.textContent = data.message || data.error || 'No conectado todavía — los números de abajo son de ejemplo.';
+        badge.textContent = 'Sin conectar';
+        badge.style.background = '#FBF1E1';
+        badge.style.color = 'var(--amber)';
+        return;
+      }
+
+      lastTikTokProfile = data.profile;
+      lastTikTokVideos = data.videos || [];
+      lastTikTokHistory = data.history || [];
+
+      const followers = data.profile.follower_count || 0;
+      document.getElementById('tiktok-followers-num').textContent = followers.toLocaleString('es-AR');
+      document.getElementById('tiktok-followers-num').dataset.locked = '1';
+      document.getElementById('tiktok-source-tag').textContent = '● Dato real vía API — @' + (data.profile.display_name || data.profile.open_id || '');
+      document.getElementById('tiktok-source-tag').style.color = 'var(--bg-deep)';
+
+      const horaActual = new Date().toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
+      statusEl.textContent = 'Conectado y sincronizado automáticamente · ' + horaActual;
+      badge.textContent = 'Conectado';
+      badge.style.background = '#E2F0E6';
+      badge.style.color = '#357047';
+
+      recalcComunidadTotal();
+      renderTikTokPosts(data.videos, data.profile);
+    }catch(e){
+      statusEl.textContent = 'No se pudo consultar el backend — mostrando datos de ejemplo.';
+      badge.textContent = 'Sin backend';
+      badge.style.background = '#FBEAE8';
+      badge.style.color = 'var(--red)';
+    }
+  }
+
+  function openTikTokDetailModal(){
+    const overlay = document.getElementById('tiktok-modal-overlay');
+    const body = document.getElementById('tiktok-modal-body');
+    overlay.classList.add('show');
+
+    if(!lastTikTokProfile){
+      document.getElementById('tiktok-modal-username').textContent = 'Sin conectar';
+      body.innerHTML = `<div class="ig-empty-note">Todavía no hay datos reales conectados. La conexión con TikTok se hace una sola vez desde el backend — avisale a quien administra la plataforma.</div>`;
+      return;
+    }
+
+    document.getElementById('tiktok-modal-username').textContent = '@' + (lastTikTokProfile.display_name || '');
+
+    const videos = lastTikTokVideos || [];
+    const avgViews = videos.length ? Math.round(videos.reduce((a,v)=>a+(v.view_count||0),0)/videos.length) : null;
+    const avgLikes = videos.length ? Math.round(videos.reduce((a,v)=>a+(v.like_count||0),0)/videos.length) : null;
+
+    let growthHtml = '';
+    if(lastTikTokHistory.length >= 2){
+      const primero = lastTikTokHistory[0];
+      const diff = (lastTikTokProfile.follower_count||0) - primero.followers_count;
+      const signo = diff >= 0 ? '+' : '';
+      const color = diff >= 0 ? 'var(--bg-deep)' : 'var(--red)';
+      growthHtml = `<div class="sub" style="color:${color};">${signo}${diff.toLocaleString('es-AR')} desde el ${formatFechaX(primero.date)}</div>`;
+    } else {
+      growthHtml = `<div class="sub" style="color:var(--text-faint);">Empezamos a registrar hoy</div>`;
+    }
+
+    body.innerHTML = `
+      <div class="ig-stat-grid">
+        <div class="ig-stat-box">
+          <div class="lbl">Seguidores</div>
+          <div class="val">${(lastTikTokProfile.follower_count||0).toLocaleString('es-AR')}</div>
+          ${growthHtml}
+        </div>
+        <div class="ig-stat-box">
+          <div class="lbl">Videos totales</div>
+          <div class="val">${lastTikTokProfile.video_count != null ? lastTikTokProfile.video_count.toLocaleString('es-AR') : '—'}</div>
+          <div class="sub" style="color:var(--text-faint);">históricos en la cuenta</div>
+        </div>
+        <div class="ig-stat-box">
+          <div class="lbl">Vistas — promedio</div>
+          <div class="val">${avgViews !== null ? avgViews.toLocaleString('es-AR') : '—'}</div>
+          <div class="sub" style="color:var(--text-faint);">últimos ${videos.length} videos</div>
+        </div>
+        <div class="ig-stat-box">
+          <div class="lbl">Likes — promedio</div>
+          <div class="val">${avgLikes !== null ? avgLikes.toLocaleString('es-AR') : '—'}</div>
+          <div class="sub" style="color:var(--text-faint);">últimos ${videos.length} videos</div>
+        </div>
+      </div>
+
+      <div class="ig-modal-section" style="margin-bottom:0;">
+        <h4>Crecimiento de seguidores</h4>
+        ${lastTikTokHistory.length >= 2
+          ? `<div id="tiktok-modal-growth-chart"></div>`
+          : `<div class="ig-empty-note">Todavía no hay suficiente historial propio para graficar la curva — la plataforma guarda un registro automático todos los días, incluso sin que nadie la abra. En unos días vas a ver la tendencia real acá.</div>`
+        }
+      </div>
+    `;
+
+    if(lastTikTokHistory.length >= 2){
+      const data = lastTikTokHistory.map(h => h.followers_count);
+      areaChart(document.getElementById('tiktok-modal-growth-chart'), data, { h:140, colorHex:'#000000' });
+    }
+  }
+
+  function closeTikTokDetailModal(){
+    document.getElementById('tiktok-modal-overlay').classList.remove('show');
+  }
+
+  function renderTikTokPosts(videos, profile){
+    const bestCard = document.getElementById('tiktok-best-post-card');
+    const bestContent = document.getElementById('tiktok-best-post-content');
+    const postsCard = document.getElementById('tiktok-posts-card');
+    const countEl = document.getElementById('tiktok-posts-count');
+    const list = document.getElementById('tiktok-posts-list');
+
+    if(!videos || !videos.length){
+      bestCard.style.display = 'none';
+      postsCard.style.display = 'none';
+      return;
+    }
+
+    const withEngagement = videos.map(v => ({
+      ...v,
+      engagement: (v.like_count||0) + (v.comment_count||0) + (v.share_count||0),
+    }));
+    const ordenados = [...withEngagement].sort((a,b) => b.engagement - a.engagement);
+    const mejor = ordenados[0];
+
+    bestCard.style.display = 'block';
+    bestContent.innerHTML = `
+      <div class="best-post-wrap">
+        <div class="post-thumb placeholder" style="background:#000; color:#fff;">🎵</div>
+        <div style="flex:1; min-width:0;">
+          <div class="caption">${(mejor.title || '(sin título)').slice(0,110)}${(mejor.title||'').length>110?'…':''}</div>
+          <div class="meta">${mejor.create_time ? formatFechaX(new Date(mejor.create_time*1000).toISOString()) : ''} · <a href="${mejor.share_url||'#'}" target="_blank" style="color:inherit;">Ver en TikTok ↗</a></div>
+        </div>
+        <div class="best-post-metrics">
+          <div><b>${(mejor.view_count||0).toLocaleString('es-AR')}</b><span>Vistas</span></div>
+          <div><b>${(mejor.like_count||0).toLocaleString('es-AR')}</b><span>Likes</span></div>
+          <div><b>${(mejor.comment_count||0).toLocaleString('es-AR')}</b><span>Comentarios</span></div>
+        </div>
+      </div>`;
+
+    postsCard.style.display = 'block';
+    countEl.textContent = `${videos.length} videos · ordenados por interacción`;
+    list.innerHTML = ordenados.map(v => `
+      <div class="post-detail-row">
+        <div class="post-thumb placeholder" style="background:#000; color:#fff; font-size:14px;">🎵</div>
+        <div class="post-detail-info">
+          <div class="caption">${(v.title || '(sin título)').slice(0,65)}${(v.title||'').length>65?'…':''}</div>
+          <div class="meta">${v.create_time ? formatFechaX(new Date(v.create_time*1000).toISOString()) : ''}</div>
+        </div>
+        <div class="post-detail-metrics">
+          <div><b>${(v.view_count||0).toLocaleString('es-AR')}</b>vistas</div>
+          <div><b>${(v.like_count||0).toLocaleString('es-AR')}</b>likes</div>
+        </div>
+        <a class="permalink" href="${v.share_url||'#'}" target="_blank" title="Ver en TikTok">↗</a>
       </div>`).join('');
   }
 
@@ -2649,6 +2884,37 @@
       </tr>
     `).join('') || '<tr><td colspan="4" style="color:var(--text-faint);">Sin movimientos sin clasificar 🎉</td></tr>';
     window.FIN_SINCLASIF_CONCEPTOS = filas.map(([concepto]) => normalizarTexto(concepto));
+
+    renderManualesFinanzas();
+  }
+
+  function renderManualesFinanzas(){
+    const body = document.getElementById('fin-manuales-body');
+    if(!body) return;
+    const entradas = Object.entries(finanzasReglasManuales);
+    document.getElementById('fin-manuales-sub').textContent = `${entradas.length} concepto${entradas.length===1?'':'s'}`;
+    if(!entradas.length){
+      body.innerHTML = '<tr><td colspan="3" style="color:var(--text-faint);">Todavía no reclasificaste ningún concepto a mano.</td></tr>';
+      return;
+    }
+    // recuperamos el texto "original" (no normalizado) de algún movimiento real para mostrarlo lindo
+    const originalDe = {};
+    finanzasMovs.forEach(m => { originalDe[normalizarTexto(m.concepto)] = m.concepto; });
+
+    body.innerHTML = entradas.map(([conceptoNorm, regla], i) => `
+      <tr>
+        <td>${escapeHTML(originalDe[conceptoNorm] || conceptoNorm)}</td>
+        <td>${escapeHTML(regla.rubro)}</td>
+        <td><button class="btn ghost" style="font-size:11.5px; padding:5px 10px;" onclick="deshacerClasificacionManual(FIN_MANUALES_CONCEPTOS[${i}])">↩️ Deshacer</button></td>
+      </tr>
+    `).join('');
+    window.FIN_MANUALES_CONCEPTOS = entradas.map(([conceptoNorm]) => conceptoNorm);
+  }
+
+  function deshacerClasificacionManual(conceptoNormalizado){
+    delete finanzasReglasManuales[conceptoNormalizado];
+    try{ localStorage.setItem(FINANZAS_MANUAL_KEY, JSON.stringify(finanzasReglasManuales)); }catch(e){}
+    reclasificarTodo();
   }
 
   function opcionesRubroHTML(){
@@ -3759,6 +4025,7 @@ Si hay noticias recientes, incluilas. Si hay más de un jugador con ese nombre, 
     const duration = 1200;
     const start = performance.now();
     function step(now){
+      if(el.dataset.locked) return; // ya llegó un valor real de la API, no lo pisamos
       const p = Math.min(1, (now-start)/duration);
       const eased = 1 - Math.pow(1-p, 3);
       const val = target * eased;
