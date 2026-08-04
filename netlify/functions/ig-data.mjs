@@ -2,7 +2,7 @@
 
 import { getStore } from '@netlify/blobs';
 
-const GRAPH = 'https://graph.facebook.com/v21.0';
+const GRAPH = 'https://graph.facebook.com/v22.0';
 
 async function graph(url) {
   const res = await fetch(url);
@@ -160,8 +160,12 @@ export default async (request) => {
     // métrica, antes tumbaba TODA la consulta combinada y las otras dos
     // quedaban en null también sin necesidad.
     try {
-      const r = await graph(`${GRAPH}/${tokens.igUserId}/insights?metric=reach&period=day&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`);
-      reachTotal = sumMetric(r.data, 'reach');
+      // metric_type=total_value = cuentas únicas deduplicadas del período.
+      // Sumar el "reach" día por día (period=day) cuenta de más a la misma
+      // persona si vio contenido en más de un día del mes.
+      const r = await graph(`${GRAPH}/${tokens.igUserId}/insights?metric=reach&metric_type=total_value&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`);
+      const found = r.data?.find(d => d.name === 'reach');
+      reachTotal = found?.total_value?.value ?? null;
     } catch (e) {}
     try {
       const pv = await graph(`${GRAPH}/${tokens.igUserId}/insights?metric=profile_views&period=day&since=${since}&until=${until}&access_token=${tokens.pageAccessToken}`);
