@@ -684,9 +684,9 @@
           <div class="delta up">▲ 6,4% vs. mes anterior</div>
         </div>
         <div class="card kpi hoverable">
-          <h3>Próximo evento</h3>
-          <div class="num" style="font-size:19px; font-family:var(--font-display); margin-top:8px;">vs. Platense</div>
-          <div class="delta" style="color:var(--text-soft);">Sáb 27/06 · 1.240 entradas</div>
+          <h3>Próximo partido</h3>
+          <div class="num" id="resumen-proximo-rival" style="font-size:19px; font-family:var(--font-display); margin-top:8px;">—</div>
+          <div class="delta" style="color:var(--text-soft);" id="resumen-proximo-sub">Cargando…</div>
         </div>
       </div>
 
@@ -703,6 +703,19 @@
         <div class="card hoverable">
           <h3>Composición del ingreso</h3>
           <div id="donut-ingresos"></div>
+        </div>
+      </div>
+
+      <div class="card hoverable" style="margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+          <h3 style="margin-bottom:0;">Últimos resultados oficiales</h3>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-size:11.5px; color:var(--text-faint);" id="resumen-fixture-status">—</span>
+            <button class="btn ghost" style="font-size:12px; padding:6px 12px;" onclick="cargarFixture(true)">🔄 Actualizar</button>
+          </div>
+        </div>
+        <div id="resumen-resultados-list" style="display:flex; flex-direction:column; gap:8px;">
+          <div style="color:var(--text-faint); font-size:13px;">Cargando resultados…</div>
         </div>
       </div>
 
@@ -1497,6 +1510,7 @@
     loadXData();
     initSocios();
     initFinanzas();
+    initFixture();
   }
 
   function startHeartbeat(username){
@@ -2238,6 +2252,117 @@
     try{ localStorage.removeItem(SOCIOS_KEY); }catch(e){}
     renderSociosPanel(null);
     showToast('Caché de socios eliminado.');
+  }
+
+  /* ============ MÓDULO FIXTURE (próximo partido + resultados oficiales) ============ */
+  const FIXTURE_KEY = 'fixture_excursionistas';
+  let fixtureActual = null;
+
+  function initFixture(){
+    try{
+      const cached = localStorage.getItem(FIXTURE_KEY);
+      if(cached) renderFixture(JSON.parse(cached));
+    }catch(e){}
+    cargarFixture(false);
+  }
+
+  async function cargarFixture(forzar){
+    const statusEl = document.getElementById('resumen-fixture-status');
+    if(statusEl && forzar) statusEl.textContent = 'Actualizando…';
+    try{
+      const r = await fetch(`/.netlify/functions/fixture-excursionistas${forzar ? '?force=1' : ''}`);
+      const data = await r.json();
+      if(data.error){
+        if(statusEl) statusEl.textContent = fixtureActual ? 'No se pudo actualizar — mostrando lo último guardado.' : 'Sin datos todavía.';
+        if(forzar) showToast('No se pudo actualizar el fixture: ' + data.error);
+        return;
+      }
+      try{ localStorage.setItem(FIXTURE_KEY, JSON.stringify(data)); }catch(e){}
+      renderFixture(data);
+      if(forzar) showToast('✓ Fixture actualizado.');
+    }catch(e){
+      if(statusEl) statusEl.textContent = fixtureActual ? 'Sin conexión — mostrando lo último guardado.' : 'Sin datos todavía.';
+      if(forzar) showToast('No se pudo conectar para actualizar el fixture.');
+    }
+  }
+
+  function renderFixture(data){
+    fixtureActual = data;
+
+    const rivalEl = document.getElementById('resumen-proximo-rival');
+    const subEl = document.getElementById('resumen-proximo-sub');
+    const p = data.proximoPartido;
+    if(rivalEl && subEl){
+      if(p && p.rival){
+        rivalEl.textContent = `vs. ${p.rival}`;
+        const cond = p.condicion === 'Visitante' ? '(V)' : p.condicion === 'Local' ? '(L)' : '';
+        const fecha = p.fecha ? fechaLegibleCorta(p.fecha) : '';
+        const hora = p.hora ? `· ${p.hora} hs` : '';
+        subEl.textContent = [fecha, hora, cond, p.competencia].filter(Boolean).join(' ');
+      } else {
+        rivalEl.textContent = 'Sin confirmar';
+        subEl.textContent = 'Todavía no hay próximo partido oficial confirmado.';
+      }
+    }
+
+    const statusEl = document.getElementById('resumen-fixture-status');
+    if(statusEl && data.fetchedAt){
+      statusEl.textContent = `Actualizado ${tiempoRelativo(data.fetchedAt)}`;
+    }
+
+    const listEl = document.getElementById('resumen-resultados-list');
+    if(listEl){
+      const resultados = data.ultimosResultados || [];
+      if(!resultados.length){
+        listEl.innerHTML = '<div style="color:var(--text-faint); font-size:13px;">Todavía no hay resultados cargados.</div>';
+      } else {
+        listEl.innerHTML = resultados.map(m => {
+          const ge = m.golesExcursionistas, gr = m.golesRival;
+          let badge = 'E', color = 'var(--amber)';
+          if(typeof ge === 'number' && typeof gr === 'number'){
+            if(ge > gr){ badge = 'G'; color = '#3B6D11'; }
+            else if(ge < gr){ badge = 'P'; color = '#A32D2D'; }
+          }
+          const marcador = (typeof ge === 'number' && typeof gr === 'number') ? `${ge} - ${gr}` : 's/d';
+          const cond = m.condicion === 'Visitante' ? '(V)' : m.condicion === 'Local' ? '(L)' : '';
+          return `
+            <div style="display:flex; align-items:center; gap:12px; padding:8px 10px; border:1px solid var(--border); border-radius:8px;">
+              <div style="width:26px; height:26px; border-radius:50%; background:${color}; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0;">${badge}</div>
+              <div style="flex:1; min-width:0;">
+                <div style="font-size:13.5px; font-weight:600;">vs. ${m.rival || '—'} ${cond}</div>
+                <div style="font-size:11.5px; color:var(--text-faint);">${m.fecha ? fechaLegibleCorta(m.fecha) : ''} ${m.competencia ? '· ' + m.competencia : ''}</div>
+              </div>
+              <div class="mono" style="font-size:15px; font-weight:700;">${marcador}</div>
+            </div>`;
+        }).join('');
+      }
+    }
+
+    // Nota de convocatoria en el panel de Plantel, si hay próximo partido
+    const convNote = document.querySelector('.convocatoria-note');
+    if(convNote && p && p.rival){
+      const fecha = p.fecha ? fechaLegibleCorta(p.fecha) : '';
+      convNote.textContent = `Próximo partido: vs. ${p.rival}${fecha ? ' · ' + fecha : ''}`;
+    }
+  }
+
+  function fechaLegibleCorta(iso){
+    // "2026-08-08" -> "Sáb 08/08"
+    try{
+      const [y,m,d] = iso.split('-').map(Number);
+      const dt = new Date(Date.UTC(y, m-1, d));
+      const dias = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+      return `${dias[dt.getUTCDay()]} ${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}`;
+    }catch(e){ return iso; }
+  }
+
+  function tiempoRelativo(ts){
+    const min = Math.round((Date.now() - ts) / 60000);
+    if(min < 1) return 'recién';
+    if(min < 60) return `hace ${min} min`;
+    const h = Math.round(min/60);
+    if(h < 24) return `hace ${h} h`;
+    return `hace ${Math.round(h/24)} d`;
   }
 
   /* ============ MÓDULO FINANZAS ============ */
@@ -3897,7 +4022,10 @@ Si hay noticias recientes, incluilas. Si hay más de un jugador con ese nombre, 
     }
     const phone = document.getElementById('conv-phone').value.replace(/[^0-9+]/g,'');
     checked.sort((a,b) => a.apellido.localeCompare(b.apellido));
-    let msg = `📋 *Convocatoria — vs. Platense*\n🗓️ Sábado 27/06 · 16:00 hs\n\n`;
+    const p = fixtureActual && fixtureActual.proximoPartido;
+    const rivalTxt = (p && p.rival) ? p.rival : 'rival a confirmar';
+    const fechaTxt = (p && p.fecha) ? fechaLegibleCorta(p.fecha) + (p.hora ? ` · ${p.hora} hs` : '') : 'fecha a confirmar';
+    let msg = `📋 *Convocatoria — vs. ${rivalTxt}*\n🗓️ ${fechaTxt}\n\n`;
     checked.forEach((p,i) => { msg += `${i+1}. ${p.apellido}, ${p.nombre}\n`; });
     msg += `\nTotal convocados: ${checked.length}\nEnviado desde Club Inteligente — Excursionistas`;
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
