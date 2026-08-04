@@ -3911,7 +3911,6 @@ Si hay noticias recientes, incluilas. Si hay más de un jugador con ese nombre, 
 
   function initCharts(){
     areaChart(document.getElementById('chart-ingresos-resumen'), ingresos6m, {h:130, colorHex:'#02632E', labels:mesesLabel});
-    areaChart(document.getElementById('chart-ingresos-finanzas'), ingresos6m, {h:150, colorHex:'#02632E', labels:mesesLabel});
     areaChart(document.getElementById('chart-redes'), [40,55,48,62,90,100,75], {h:150, colorHex:'#C0A270', labels:['L','M','M','J','V','S','D']});
 
     const segs = [
@@ -3920,7 +3919,6 @@ Si hay noticias recientes, incluilas. Si hay más de un jugador con ese nombre, 
       {label:'Sponsors', value:15, colorHex:'#7C8FC4'}
     ];
     donut(document.getElementById('donut-ingresos'), segs, {size:130, stroke:16});
-    donut(document.getElementById('donut-ingresos-2'), segs, {size:150, stroke:18});
 
     radialGauge(document.getElementById('gauge-morosidad'), 14, '#BD8A2E', 64);
 
